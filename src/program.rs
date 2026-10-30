@@ -1,22 +1,41 @@
 use crate::tables::{OPCODE_TEMPLATES, SRC_DEEP, SRC_SHALLOW};
+
+/// `HashWX` seed size in bytes.
 pub const SEED_SIZE: usize = 32;
+/// Number of generated subprograms in a `HashWX` program set.
 pub const PROGRAM_COUNT: usize = 32;
+/// Number of instructions in each `HashWX` subprogram.
 pub const PROGRAM_SIZE: usize = 8;
+
+/// `HashWX` instruction operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Op {
+    /// OR an immediate into the destination, then multiply by the source.
     MulOr = 0,
+    /// XOR an immediate into the destination, then multiply by the source.
     MulXor = 1,
+    /// Add an immediate to the destination, then multiply by the source.
     MulAdd = 2,
+    /// Multiply by the per-program RMCG constant and rotate right.
     Rmcg = 3,
+    /// Rotate right, then XOR the source into the destination.
     XorRor = 4,
+    /// Rotate right, then add the source to the destination.
     AddRor = 5,
+    /// Rotate right, then subtract the source from the destination.
     SubRor = 6,
+    /// Arithmetic-shift right, then XOR the source into the destination.
     XorAsr = 7,
+    /// Arithmetic-shift right, then add the source to the destination.
     AddAsr = 8,
+    /// Arithmetic-shift right, then subtract the source from the destination.
     SubAsr = 9,
+    /// Logical-shift right, then XOR the source into the destination.
     XorLsr = 10,
+    /// Logical-shift right, then add the source to the destination.
     AddLsr = 11,
+    /// Logical-shift right, then subtract the source from the destination.
     SubLsr = 12,
 }
 impl Op {
@@ -57,12 +76,45 @@ impl Op {
         }
     }
 }
+/// One generated `HashWX` instruction.
+///
+/// Instances are produced by [`generate`]. The fields are intentionally
+/// read-only outside this crate so native backends can rely on the generator's
+/// register and immediate invariants when emitting machine code.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Instruction {
-    pub op: Op,
-    pub dst: u8,
-    pub src: u8,
-    pub imm: u8,
+    pub(crate) op: Op,
+    pub(crate) dst: u8,
+    pub(crate) src: u8,
+    pub(crate) imm: u8,
+}
+impl Instruction {
+    /// Operation performed by this instruction.
+    #[must_use]
+    pub const fn op(self) -> Op {
+        self.op
+    }
+
+    /// Destination virtual-register index (`0..8`).
+    #[must_use]
+    pub const fn dst(self) -> u8 {
+        self.dst
+    }
+
+    /// Source virtual-register index.
+    ///
+    /// Values `0..8` address virtual registers. The generator may use `8` for
+    /// the `HashWX` special source selected by the instruction class.
+    #[must_use]
+    pub const fn src(self) -> u8 {
+        self.src
+    }
+
+    /// Instruction immediate in the `HashWX` encoding.
+    #[must_use]
+    pub const fn imm(self) -> u8 {
+        self.imm
+    }
 }
 const EMPTY_I: Instruction = Instruction {
     op: Op::Rmcg,
@@ -70,19 +122,51 @@ const EMPTY_I: Instruction = Instruction {
     src: 8,
     imm: 1,
 };
+/// One eight-instruction `HashWX` subprogram.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Program {
-    pub body: [Instruction; 8],
-    pub unconditional: bool,
+    pub(crate) body: [Instruction; 8],
+    pub(crate) unconditional: bool,
+}
+impl Program {
+    /// Instructions in execution order.
+    #[must_use]
+    pub const fn body(&self) -> &[Instruction; PROGRAM_SIZE] {
+        &self.body
+    }
+
+    /// Whether the loop at the end of this subprogram is unconditional.
+    #[must_use]
+    pub const fn unconditional(&self) -> bool {
+        self.unconditional
+    }
 }
 const EMPTY_P: Program = Program {
     body: [EMPTY_I; 8],
     unconditional: false,
 };
-#[derive(Clone, Debug)]
+/// Complete architecture-neutral `HashWX` program generated from one seed.
+///
+/// The representation is exposed read-only so alternate backends can consume
+/// the exact generated program without being able to violate the invariants
+/// relied on by the native JITs.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProgramSet {
-    pub programs: [Program; 32],
-    pub hash_key: [u64; 2],
+    pub(crate) programs: [Program; 32],
+    pub(crate) hash_key: [u64; 2],
+}
+impl ProgramSet {
+    /// Generated subprograms in execution order.
+    #[must_use]
+    pub const fn programs(&self) -> &[Program; PROGRAM_COUNT] {
+        &self.programs
+    }
+
+    /// Seed-derived two-word key used by `HashWX` initialization/finalization.
+    #[must_use]
+    pub const fn hash_key(&self) -> [u64; 2] {
+        self.hash_key
+    }
 }
 #[derive(Clone, Copy)]
 struct SipRng {
@@ -224,6 +308,7 @@ fn one(rng: &mut SipRng, last: bool, deep: bool) -> Program {
         unconditional: last,
     }
 }
+/// Generate the deterministic `HashWX` program for `seed`.
 #[must_use]
 pub fn generate(seed: &[u8; 32]) -> ProgramSet {
     let program_key = key(seed, 0);

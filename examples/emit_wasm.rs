@@ -1,3 +1,5 @@
+//! Emit generated `HashWX` WebAssembly modules for inspection.
+
 #[cfg(feature = "wasm")]
 fn main() -> std::io::Result<()> {
     for (name, seed_text) in [

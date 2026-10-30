@@ -13,22 +13,27 @@ jobs:
       rust-components: "clippy rustfmt"
       command: >-
         cargo fmt --check &&
-        cargo clippy --all-targets --all-features -- -D warnings &&
-        cargo test --release &&
-        cargo test --release --no-default-features --features native &&
-        cargo test --release --no-default-features --features hashx &&
-        cargo test --release --no-default-features --features wasm &&
-        cargo test --release --all-features &&
-        cargo package --no-verify
+        cargo clippy --locked --all-targets --all-features -- -D warnings &&
+        cargo test --locked --release &&
+        cargo test --locked --release --no-default-features &&
+        cargo test --locked --release --no-default-features --features native &&
+        cargo test --locked --release --no-default-features --features hashx &&
+        cargo test --locked --release --no-default-features --features wasm &&
+        cargo check --locked --no-default-features --features native,wasm &&
+        cargo check --locked --no-default-features --features hashx,wasm &&
+        cargo test --locked --release --all-features &&
+        RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features &&
+        cargo package --locked
 
   msrv:
     uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@f360aee0f8e6f5c191901b61d94296471f320c3b # main
     with:
       rust-toolchain: "1.92.0"
       command: >-
-        cargo check --all-features &&
-        cargo check --no-default-features --features hashx &&
-        cargo check --no-default-features --features wasm
+        cargo check --locked --all-features &&
+        cargo check --locked --no-default-features &&
+        cargo check --locked --no-default-features --features hashx &&
+        cargo check --locked --no-default-features --features wasm
 
   aarch64:
     uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@f360aee0f8e6f5c191901b61d94296471f320c3b # main
@@ -38,5 +43,20 @@ jobs:
       rust-targets: "aarch64-unknown-linux-musl"
       rustflags: ""
       command: >-
-        cargo clippy --target aarch64-unknown-linux-musl --all-features -- -D warnings &&
-        cargo check --target aarch64-unknown-linux-musl --all-features
+        cargo clippy --locked --target aarch64-unknown-linux-musl --all-features -- -D warnings &&
+        cargo check --locked --target aarch64-unknown-linux-musl --all-features &&
+        (command -v qemu-aarch64 >/dev/null || (sudo apt-get update && sudo apt-get install -y qemu-user)) &&
+        sysroot="$(rustc +1.99.0 --print sysroot)" &&
+        env CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUNNER=qemu-aarch64
+        CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="$sysroot/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld"
+        CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-C linker-flavor=ld.lld"
+        cargo test --locked --release --target aarch64-unknown-linux-musl --all-features
+        --test vectors --test hashx
+
+  windows-x86-cross:
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@f360aee0f8e6f5c191901b61d94296471f320c3b # main
+    with:
+      rust-toolchain: "1.99.0"
+      rust-targets: "x86_64-pc-windows-gnu"
+      rustflags: ""
+      command: cargo check --locked --target x86_64-pc-windows-gnu --all-features

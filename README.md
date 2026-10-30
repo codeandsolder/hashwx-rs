@@ -39,17 +39,17 @@ HashX keeps the exact v1 seed/program semantics, including the small set of seed
 
 ## Correctness
 
-The test suite includes the official HashWX 1.0 and HashX v1 vectors. The repo-owned HashX generator/interpreter is differentially checked against upstream `hashx` as a dev-only oracle, and the native HashX JIT is checked against our interpreter. HashWX native x86-64/AArch64 and generated WebAssembly are checked against the HashWX reference implementation.
+The test suite includes the official HashWX 1.0 and HashX v1 vectors. The repo-owned HashX generator/interpreter is differentially checked against upstream `hashx` as a dev-only oracle, and the native HashX JIT is checked against our interpreter on the executing host. Generated HashWX WebAssembly is instantiated and executed against the official vectors. The x86-64 native HashWX path is exercised directly in hosted CI; the AArch64 HashWX and HashX JITs are cross-built as static musl tests and executed under `qemu-aarch64` in the release gate.
 
 ## Performance
 
 On the development x86-64 systems, the HashWX native backend generates roughly 9.4 KiB of machine code in tens of microseconds. The generated Wasm module is roughly 14 KiB. Performance depends strongly on CPU and Wasm engine; benchmarks are intentionally not presented as stable API guarantees.
 
-`cargo run --release --example bench_native -- hashwx` benchmarks HashWX; the same command with `hashx` benchmarks the repo-owned HashX JIT. On the Asus development machine the first custom HashX pass was about 13.6 MH/s with roughly 60–90 µs warm JIT compilation, before moving register initialization/finalization into generated code.
+`cargo run --release --example bench_native -- hashwx` benchmarks HashWX; the same command with `hashx` benchmarks the repo-owned HashX JIT. On the Ryzen 9 4900HS development machine the current x86-64 HashX path is roughly 14.6 MH/s, with about 70–90 µs warm JIT compilation. These numbers are development measurements, not API guarantees.
 
 ## Portability
 
-The HashWX program generator and `ProgramSet` are architecture-neutral. The HashWX native backend supports x86-64 and AArch64. AArch64 is tested against the official vectors under QEMU; real-hardware benchmarking is still intentionally boringly pending. The `wasm` backend is available independently with `--no-default-features --features wasm`.
+The HashWX program generator and `ProgramSet` are architecture-neutral. The HashWX native backend supports x86-64 and AArch64. The release gate cross-compiles AArch64 and executes the native HashWX/HashX test binaries under `qemu-aarch64`. The `wasm` backend is available independently with `--no-default-features --features wasm`.
 
 HashX interpretation is portable with `--no-default-features --features hashx`. Native HashX compilation currently uses hashwx-rs backends on x86-64 and AArch64 with `native,hashx`.
 

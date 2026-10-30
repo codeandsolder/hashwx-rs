@@ -1,3 +1,8 @@
+//! Portable WebAssembly emitter for `HashWX`.
+//!
+//! Generated modules import nothing, own a fixed one-page memory, and export a
+//! single `hash(i64) -> i64` function.
+
 use crate::{
     ProgramSet, SEED_SIZE, generate,
     program::{Instruction as HIns, Op, Program},
@@ -306,10 +311,12 @@ fn body(set: &ProgramSet) -> Function {
     e(&mut f, Instruction::End);
     f
 }
+/// Compile `seed` into a self-contained `HashWX` WebAssembly module.
 #[must_use]
 pub fn compile(seed: &[u8; SEED_SIZE]) -> Vec<u8> {
     compile_program(&generate(seed))
 }
+/// Compile an already-generated `HashWX` [`ProgramSet`] into WebAssembly bytes.
 #[must_use]
 pub fn compile_program(set: &ProgramSet) -> Vec<u8> {
     let mut m = Module::new();
