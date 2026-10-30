@@ -1,3 +1,5 @@
+//! Small native throughput/JIT construction benchmark.
+
 #[cfg(feature = "native")]
 use std::time::Instant;
 

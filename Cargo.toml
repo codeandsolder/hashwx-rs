@@ -7,9 +7,14 @@ license="LGPL-3.0-only"
 readme="README.md"
 description="HashWX 1.0 and HashX v1 with native JITs and portable HashWX WebAssembly"
 repository="https://github.com/codeandsolder/hashwx-rs"
+documentation="https://docs.rs/hashwx"
 keywords=["hashwx","hashx","proof-of-work","jit","wasm"]
 categories=["algorithms","cryptography","wasm"]
 publish=["crates-io"]
+exclude=[".github/"]
+
+[package.metadata.docs.rs]
+all-features=true
 
 [features]
 default=["native","hashx"]
@@ -29,7 +34,18 @@ wasm-encoder={version="0.262",optional=true}
 
 [dev-dependencies]
 hashx={version="0.10",default-features=false}
-wasmparser="0.262"
+wasmi={version="2.0",default-features=false,features=["std","validate","portable-dispatch"]}
 
 [lints.rust]
 unsafe_op_in_unsafe_fn="deny"
+missing_docs="warn"
+unexpected_cfgs="warn"
+
+[lints.rustdoc]
+broken_intra_doc_links="deny"
+
+[lints.clippy]
+cargo_common_metadata="warn"
+wildcard_dependencies="warn"
+negative_feature_names="warn"
+redundant_feature_names="warn"

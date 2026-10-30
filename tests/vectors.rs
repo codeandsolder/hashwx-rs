@@ -1,3 +1,5 @@
+//! Official `HashWX` native-vector and trait-contract tests.
+
 #[cfg(all(
     feature = "native",
     any(target_arch = "x86_64", target_arch = "aarch64")

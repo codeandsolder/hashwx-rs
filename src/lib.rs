@@ -1,3 +1,11 @@
+//! `HashWX` 1.0 and `HashX` v1 program generation and execution.
+//!
+//! [`HashWx`] provides seed-specialized native JIT execution on x86-64 and
+//! `AArch64`. [`ProgramSet`] exposes the generated `HashWX` IR read-only for
+//! alternate backends, and the optional [`wasm`] module emits portable `HashWX`
+//! WebAssembly. With the `hashx` feature, [`HashX`] provides the repo-owned
+//! `HashX` v1 interpreter and native JIT.
+
 mod backend;
 mod program;
 mod tables;
@@ -8,6 +16,7 @@ pub use program::{
 };
 
 #[derive(Debug)]
+/// Failure while creating or finalizing a native JIT function.
 pub struct CompileError(String);
 impl core::fmt::Display for CompileError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -25,6 +34,10 @@ use backend::x86_64 as native_backend;
     feature = "native",
     any(target_arch = "x86_64", target_arch = "aarch64")
 ))]
+/// Seed-specialized native `HashWX` function.
+///
+/// The generated executable buffer is immutable after construction, and the
+/// type is safe to share between threads.
 pub struct HashWx {
     inner: native_backend::Compiled,
 }
@@ -54,11 +67,13 @@ impl HashWx {
             inner: native_backend::Compiled::compile(program)?,
         })
     }
+    /// Hash one nonce with this seed-specialized `HashWX` function.
     #[inline]
     #[must_use]
     pub fn hash(&self, n: u64) -> u64 {
         self.inner.hash(n)
     }
+    /// Size of the generated native function in bytes.
     #[must_use]
     pub const fn code_len(&self) -> usize {
         self.inner.code_len()

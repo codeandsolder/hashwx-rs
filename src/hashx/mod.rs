@@ -23,6 +23,7 @@ use crate::backend::hashx_aarch64 as native_backend;
 use crate::backend::hashx_x86_64 as native_backend;
 
 /// `HashX` program construction or JIT compilation error.
+#[non_exhaustive]
 #[derive(Debug)]
 pub enum HashXError {
     /// This seed produces a program that fails `HashX`'s whole-program constraints.
@@ -56,6 +57,7 @@ impl From<CompileError> for HashXError {
 }
 
 /// Effective `HashX` execution engine.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum HashXRuntime {
     /// Portable Rust reference interpreter.

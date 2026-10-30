@@ -1,3 +1,5 @@
+//! HashX compatibility, vector, and native differential tests.
+
 #![cfg(feature = "hashx")]
 
 const SEED1: &[u8] = b"This is a test\0";
