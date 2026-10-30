@@ -45,7 +45,7 @@ The test suite includes the official HashWX 1.0 and HashX v1 vectors. The repo-o
 
 On the development x86-64 systems, the HashWX native backend generates roughly 9.4 KiB of machine code in tens of microseconds. The generated Wasm module is roughly 14 KiB. Performance depends strongly on CPU and Wasm engine; benchmarks are intentionally not presented as stable API guarantees.
 
-`cargo run --release --example bench_native -- hashwx` benchmarks HashWX; the same command with `hashx` benchmarks the repo-owned HashX JIT. On the Asus development machine the first custom HashX pass was about 13.0 MH/s with roughly 90 µs warm JIT compilation, before moving register initialization/finalization into generated code.
+`cargo run --release --example bench_native -- hashwx` benchmarks HashWX; the same command with `hashx` benchmarks the repo-owned HashX JIT. On the Asus development machine the first custom HashX pass was about 13.6 MH/s with roughly 60–90 µs warm JIT compilation, before moving register initialization/finalization into generated code.
 
 ## Portability
 

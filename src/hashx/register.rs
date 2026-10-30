@@ -37,6 +37,10 @@ impl RegisterId {
     ///
     /// (Recall that hashx has 8 virtual registers,
     /// so the output of this method is always in range 0..=7.)
+    #[cfg(all(
+        feature = "native",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ))]
     #[inline]
     pub(crate) const fn as_u8(self) -> u8 {
         self.0

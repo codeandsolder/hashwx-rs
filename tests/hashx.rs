@@ -67,6 +67,13 @@ fn local_generator_and_interpreter_match_upstream() -> Result<(), String> {
 
         match (local, upstream) {
             (Ok(local), Ok(upstream)) => {
+                #[cfg(all(
+                    feature = "native",
+                    any(target_arch = "x86_64", target_arch = "aarch64")
+                ))]
+                let native =
+                    hashwx::HashX::compile(seed.as_bytes()).map_err(|error| error.to_string())?;
+
                 for nonce in [
                     0,
                     1,
@@ -75,7 +82,13 @@ fn local_generator_and_interpreter_match_upstream() -> Result<(), String> {
                     0x0123_4567_89ab_cdef,
                     u64::MAX,
                 ] {
-                    assert_eq!(local.hash_bytes(nonce), upstream.hash_to_bytes(nonce));
+                    let expected = upstream.hash_to_bytes(nonce);
+                    assert_eq!(local.hash_bytes(nonce), expected);
+                    #[cfg(all(
+                        feature = "native",
+                        any(target_arch = "x86_64", target_arch = "aarch64")
+                    ))]
+                    assert_eq!(native.hash_bytes(nonce), expected);
                 }
             }
             (

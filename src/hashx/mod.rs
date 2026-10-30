@@ -66,7 +66,7 @@ pub enum HashXRuntime {
 
 #[derive(Debug)]
 enum RuntimeProgram {
-    Interpret(Program),
+    Interpret(program::Program),
     #[cfg(all(
         feature = "native",
         any(target_arch = "x86_64", target_arch = "aarch64")
@@ -85,10 +85,10 @@ impl HashX {
     /// Full `HashX` digest width in bytes.
     pub const FULL_SIZE: usize = 32;
 
-    fn generate(seed: &[u8]) -> Result<(Program, SipState), HashXError> {
+    fn generate(seed: &[u8]) -> Result<(program::Program, SipState), HashXError> {
         let (program_key, register_key) = SipState::pair_from_seed(seed);
         let mut rng = SipRand::new(program_key);
-        Ok((Program::generate(&mut rng)?, register_key))
+        Ok((program::Program::generate(&mut rng)?, register_key))
     }
 
     /// Build an interpreter-only `HashX` instance.
@@ -167,5 +167,13 @@ impl HashX {
     }
 }
 
+#[cfg(all(
+    feature = "native",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 pub use program::{Instruction, Program};
+#[cfg(all(
+    feature = "native",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 pub use register::{RegisterFile as NativeRegisterFile, RegisterId};
