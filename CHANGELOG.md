@@ -9,3 +9,4 @@
 - Expose generated HashWX IR through read-only accessors so native JIT invariants cannot be violated through the safe public API.
 - Execute generated WebAssembly against the official HashWX vectors in tests.
 - Add reproducible locked CI, strict rustdoc/public-API checks, Windows cross-checking, and verified package/publish dry runs.
+- Execute AArch64 native JIT vector/differential tests under QEMU and expand deterministic generator/backend corpus coverage.

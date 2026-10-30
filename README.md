@@ -39,7 +39,7 @@ HashX keeps the exact v1 seed/program semantics, including the small set of seed
 
 ## Correctness
 
-The test suite includes the official HashWX 1.0 and HashX v1 vectors. The repo-owned HashX generator/interpreter is differentially checked against upstream `hashx` as a dev-only oracle, and the native HashX JIT is checked against our interpreter on the executing host. Generated HashWX WebAssembly is instantiated and executed against the official vectors. The x86-64 native HashWX path is exercised in ordinary hosted CI; AArch64 native code is currently cross-compiled but not executed by the release gate.
+The test suite includes the official HashWX 1.0 and HashX v1 vectors. The repo-owned HashX generator/interpreter is differentially checked against upstream `hashx` as a dev-only oracle, and the native HashX JIT is checked against our interpreter on the executing host. Generated HashWX WebAssembly is instantiated and executed against the official vectors. The x86-64 native HashWX path is exercised directly in hosted CI; the AArch64 HashWX and HashX JITs are cross-built as static musl tests and executed under `qemu-aarch64` in the release gate.
 
 ## Performance
 
@@ -49,7 +49,7 @@ On the development x86-64 systems, the HashWX native backend generates roughly 9
 
 ## Portability
 
-The HashWX program generator and `ProgramSet` are architecture-neutral. The HashWX native backend supports x86-64 and AArch64. The current release gate cross-compiles AArch64; native AArch64 execution is tracked separately and should not be inferred from the cross-build alone. The `wasm` backend is available independently with `--no-default-features --features wasm`.
+The HashWX program generator and `ProgramSet` are architecture-neutral. The HashWX native backend supports x86-64 and AArch64. The release gate cross-compiles AArch64 and executes the native HashWX/HashX test binaries under `qemu-aarch64`. The `wasm` backend is available independently with `--no-default-features --features wasm`.
 
 HashX interpretation is portable with `--no-default-features --features hashx`. Native HashX compilation currently uses hashwx-rs backends on x86-64 and AArch64 with `native,hashx`.
 

@@ -5,6 +5,25 @@
 const SEED1: &[u8] = b"This is a test\0";
 const SEED2: &[u8] = b"Lorem ipsum dolor sit amet\0";
 
+fn differential_seed(index: u64) -> [u8; 32] {
+    fn splitmix64(mut value: u64) -> u64 {
+        value = value.wrapping_add(0x9e37_79b9_7f4a_7c15);
+        value = (value ^ (value >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        value = (value ^ (value >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+        value ^ (value >> 31)
+    }
+
+    let mut seed = [0_u8; 32];
+    for (word_index, chunk) in [0_u64, 1, 2, 3]
+        .into_iter()
+        .zip(seed.as_chunks_mut::<8>().0.iter_mut())
+    {
+        let word = splitmix64(index.wrapping_add(word_index * 0x0000_0100_0000_01b3));
+        chunk.copy_from_slice(&word.to_le_bytes());
+    }
+    seed
+}
+
 #[test]
 fn hashx_is_send_sync() {
     fn assert_send_sync<T: Send + Sync>() {}
@@ -67,12 +86,12 @@ fn reports_rejected_seeds() {
 fn local_generator_and_interpreter_match_upstream() -> Result<(), String> {
     use hashx::{HashXBuilder as UpstreamBuilder, RuntimeOption};
 
-    for index in 0_u32..64 {
-        let seed = format!("hashwx-rs native HashX differential seed {index}");
-        let local = hashwx::HashX::interpret(seed.as_bytes());
+    for index in 0_u64..256 {
+        let seed = differential_seed(index);
+        let local = hashwx::HashX::interpret(&seed);
         let mut upstream_builder = UpstreamBuilder::new();
         upstream_builder.runtime(RuntimeOption::InterpretOnly);
-        let upstream = upstream_builder.build(seed.as_bytes());
+        let upstream = upstream_builder.build(&seed);
 
         match (local, upstream) {
             (Ok(local), Ok(upstream)) => {
@@ -80,17 +99,9 @@ fn local_generator_and_interpreter_match_upstream() -> Result<(), String> {
                     feature = "native",
                     any(target_arch = "x86_64", target_arch = "aarch64")
                 ))]
-                let native =
-                    hashwx::HashX::compile(seed.as_bytes()).map_err(|error| error.to_string())?;
+                let native = hashwx::HashX::compile(&seed).map_err(|error| error.to_string())?;
 
-                for nonce in [
-                    0,
-                    1,
-                    u64::from(index),
-                    123_456,
-                    0x0123_4567_89ab_cdef,
-                    u64::MAX,
-                ] {
+                for nonce in [0, 1, index, 123_456, 0x0123_4567_89ab_cdef, u64::MAX] {
                     let expected = upstream.hash_to_bytes(nonce);
                     assert_eq!(local.hash_bytes(nonce), expected);
                     #[cfg(all(
@@ -116,7 +127,7 @@ fn local_generator_and_interpreter_match_upstream() -> Result<(), String> {
             ) => {}
             (local, upstream) => {
                 return Err(format!(
-                    "local/upstream construction diverged for seed {seed:?}: local={local:?}, upstream={upstream:?}"
+                    "local/upstream construction diverged for seed index {index}: local={local:?}, upstream={upstream:?}"
                 ));
             }
         }
