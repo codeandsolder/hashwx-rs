@@ -12,13 +12,14 @@ fn seed(s: &[u8]) -> [u8; 32] {
     any(target_arch = "x86_64", target_arch = "aarch64")
 ))]
 #[test]
-fn vectors() {
-    let a = hashwx::HashWx::compile(&seed(b"This is a test seed for hashwx")).unwrap();
-    assert_eq!(a.hash(0), 0x973684176f8ee362);
-    assert_eq!(a.hash(123456), 0x401983bb07d69b07);
-    let b = hashwx::HashWx::compile(&seed(b"Lorem ipsum dolor sit amet")).unwrap();
-    assert_eq!(b.hash(123456), 0x4af38d834a9a8d3d);
-    assert_eq!(b.hash(987654321123456789), 0x6a8a5514432e17a3)
+fn vectors() -> Result<(), hashwx::CompileError> {
+    let a = hashwx::HashWx::compile(&seed(b"This is a test seed for hashwx"))?;
+    assert_eq!(a.hash(0), 0x9736_8417_6f8e_e362);
+    assert_eq!(a.hash(123_456), 0x4019_83bb_07d6_9b07);
+    let b = hashwx::HashWx::compile(&seed(b"Lorem ipsum dolor sit amet"))?;
+    assert_eq!(b.hash(123_456), 0x4af3_8d83_4a9a_8d3d);
+    assert_eq!(b.hash(987_654_321_123_456_789), 0x6a8a_5514_432e_17a3);
+    Ok(())
 }
 #[cfg(all(
     feature = "native",
@@ -27,5 +28,5 @@ fn vectors() {
 #[test]
 fn send_sync() {
     fn yes<T: Send + Sync>() {}
-    yes::<hashwx::HashWx>()
+    yes::<hashwx::HashWx>();
 }

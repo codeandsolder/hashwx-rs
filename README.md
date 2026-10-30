@@ -1,11 +1,11 @@
 # hashwx
 
-Rust implementation of [HashWX 1.0](https://github.com/tevador/hashwx), with seed-specialized native code generation, a portable WebAssembly code-generation backend, and an upstream-compatible HashX mode for direct comparison and integration.
+Rust implementation of [HashWX 1.0](https://github.com/tevador/hashwx), with seed-specialized native code generation, a portable WebAssembly code-generation backend, and a repo-owned HashX v1 mode using the same native JIT infrastructure.
 
 ## Features
 
-- `native` (default): x86-64 and AArch64 HashWX JITs using `dynasmrt`; when `hashx` is enabled it also enables upstream HashX native compilation.
-- `hashx` (default): exposes HashX v1 through the maintained upstream Rust implementation instead of duplicating its scheduler/constraint generator.
+- `native` (default): x86-64 and AArch64 JIT backends using `dynasmrt` for both HashWX and HashX.
+- `hashx` (default): repo-owned HashX v1 seed expansion, program generation, constraint/scheduling model, interpreter, and native JIT. The upstream `hashx` crate is dev-only and used as a differential oracle.
 - `wasm`: emits a self-contained HashWX WebAssembly module exporting `hash(i64) -> i64`; no Wasm runtime is required by this crate.
 - Backend-neutral HashWX `ProgramSet` IR so additional native architectures can share the exact same HashWX program generator.
 
@@ -24,7 +24,7 @@ let module = hashwx::wasm::compile(&seed);
 
 The generated module owns a fixed 64 KiB memory and imports nothing.
 
-For HashX, the same crate provides explicit native and reference paths:
+HashX uses the same split between native code generation and a portable reference path:
 
 ```rust
 let native = hashwx::HashX::compile(seed)?;
@@ -35,24 +35,24 @@ let reference = hashwx::HashX::interpret(seed)?;
 assert_eq!(value, reference.hash(nonce));
 ```
 
-HashX keeps upstream seed semantics, including the small set of seeds rejected by its program constraints. `HashX::compile` never silently falls back to the interpreter.
+HashX keeps the exact v1 seed/program semantics, including the small set of seeds rejected by whole-program constraints. `HashX::compile` emits native code with hashwx-rs's own backend and never silently falls back to the interpreter.
 
 ## Correctness
 
-The test suite includes the official HashWX 1.0 reference vectors and the upstream HashX v1 vectors. HashX native code is checked against the upstream interpreter, while HashWX native x86-64/AArch64 and generated WebAssembly are checked against the HashWX reference implementation.
+The test suite includes the official HashWX 1.0 and HashX v1 vectors. The repo-owned HashX generator/interpreter is differentially checked against upstream `hashx` as a dev-only oracle, and the native HashX JIT is checked against our interpreter. HashWX native x86-64/AArch64 and generated WebAssembly are checked against the HashWX reference implementation.
 
 ## Performance
 
 On the development x86-64 systems, the HashWX native backend generates roughly 9.4 KiB of machine code in tens of microseconds. The generated Wasm module is roughly 14 KiB. Performance depends strongly on CPU and Wasm engine; benchmarks are intentionally not presented as stable API guarantees.
 
-`cargo run --release --example bench_native -- hashwx` benchmarks HashWX and the same command with `hashx` benchmarks the upstream HashX JIT through this crate.
+`cargo run --release --example bench_native -- hashwx` benchmarks HashWX; the same command with `hashx` benchmarks the repo-owned HashX JIT. On the Asus development machine the first custom HashX pass was about 13.6 MH/s with roughly 60–90 µs warm JIT compilation, before moving register initialization/finalization into generated code.
 
 ## Portability
 
 The HashWX program generator and `ProgramSet` are architecture-neutral. The HashWX native backend supports x86-64 and AArch64. AArch64 is tested against the official vectors under QEMU; real-hardware benchmarking is still intentionally boringly pending. The `wasm` backend is available independently with `--no-default-features --features wasm`.
 
-HashX interpretation is portable with `--no-default-features --features hashx`. Native HashX compilation is available with `native,hashx` on the architectures supported by upstream HashX.
+HashX interpretation is portable with `--no-default-features --features hashx`. Native HashX compilation currently uses hashwx-rs backends on x86-64 and AArch64 with `native,hashx`.
 
 ## License
 
-LGPL-3.0-or-later, matching upstream HashWX. Derived tables and algorithm implementation are based on tevador/hashwx. HashX is used as an LGPL-3.0-only dependency from the maintained Arti implementation.
+LGPL-3.0-only. HashWX is LGPL-3.0-or-later, while the in-tree HashX compatibility model is derived from the Tor Project Arti `hashx` 0.10.0 implementation under LGPL-3.0-only, so the combined crate uses the common LGPL-3.0-only terms. hashwx-rs provides its own HashX execution backends; upstream `hashx` remains a dev-only differential oracle.

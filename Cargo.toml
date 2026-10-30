@@ -3,9 +3,9 @@ name="hashwx"
 version="0.1.0"
 edition="2024"
 rust-version="1.92"
-license="LGPL-3.0-or-later"
+license="LGPL-3.0-only"
 readme="README.md"
-description="HashWX 1.0 with fast native JITs, portable WebAssembly, and HashX compatibility"
+description="HashWX 1.0 and HashX v1 with native JITs and portable HashWX WebAssembly"
 repository="https://github.com/codeandsolder/hashwx-rs"
 keywords=["hashwx","hashx","proof-of-work","jit","wasm"]
 categories=["algorithms","cryptography","wasm"]
@@ -13,8 +13,8 @@ publish=["crates-io"]
 
 [features]
 default=["native","hashx"]
-hashx=["dep:hashx"]
-native=["dep:dynasm","dep:dynasmrt","hashx?/compiler"]
+hashx=["dep:arrayvec","dep:blake2","dep:rand_core"]
+native=["dep:dynasm","dep:dynasmrt"]
 wasm=["dep:wasm-encoder"]
 
 [target.'cfg(any(target_arch="x86_64",target_arch="aarch64"))'.dependencies]
@@ -22,10 +22,13 @@ dynasm={version="5.1",optional=true}
 dynasmrt={version="5.1",optional=true}
 
 [dependencies]
-hashx={version="0.10",default-features=false,optional=true}
+arrayvec={version="0.7.3",optional=true}
+blake2={version="0.10.6",optional=true}
+rand_core={version="0.10.1",optional=true}
 wasm-encoder={version="0.262",optional=true}
 
 [dev-dependencies]
+hashx={version="0.10",default-features=false}
 wasmparser="0.262"
 
 [lints.rust]
