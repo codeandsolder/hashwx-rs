@@ -1,5 +1,10 @@
 //! AArch64 native emitter for the repo-owned HashX IR.
 
+#![expect(
+    clippy::useless_conversion,
+    reason = "dynasm dynamic-register expansion uses .into() internally"
+)]
+
 use crate::CompileError;
 use crate::hashx::{Instruction, NativeRegisterFile, Program, RegisterId};
 use dynasmrt::{AssemblyOffset, DynasmApi, DynasmLabelApi, ExecutableBuffer, dynasm};
