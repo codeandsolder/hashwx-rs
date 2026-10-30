@@ -24,6 +24,10 @@ const REP: u32 = 14;
 const BC: u32 = 15;
 const MP: u32 = 16;
 const REGS: [u32; 8] = [R0, R1, R2, R3, R4, R5, R6, R7];
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "callers construct temporary Wasm instructions and this helper immediately encodes them"
+)]
 fn e(f: &mut Function, x: Instruction<'_>) {
     f.instruction(&x);
 }
@@ -33,57 +37,57 @@ fn copy_local(f: &mut Function, d: u32, s: u32) {
 }
 fn xor_const(f: &mut Function, r: u32, v: u64) {
     e(f, Instruction::LocalGet(r));
-    e(f, Instruction::I64Const(v as i64));
+    e(f, Instruction::I64Const(v.cast_signed()));
     e(f, Instruction::I64Xor);
     e(f, Instruction::LocalSet(r));
 }
-fn sip(f: &mut Function, a: u32, b: u32, c: u32, d: u32) {
-    for &(dst, x, y) in &[(a, a, b), (c, c, d)] {
-        e(f, Instruction::LocalGet(x));
-        e(f, Instruction::LocalGet(y));
-        e(f, Instruction::I64Add);
-        e(f, Instruction::LocalSet(dst));
+fn sip(function: &mut Function, reg0: u32, reg1: u32, reg2: u32, reg3: u32) {
+    for &(destination, left, right) in &[(reg0, reg0, reg1), (reg2, reg2, reg3)] {
+        e(function, Instruction::LocalGet(left));
+        e(function, Instruction::LocalGet(right));
+        e(function, Instruction::I64Add);
+        e(function, Instruction::LocalSet(destination));
     }
-    for &(r, n) in &[(b, 13), (d, 16)] {
-        e(f, Instruction::LocalGet(r));
-        e(f, Instruction::I64Const(n));
-        e(f, Instruction::I64Rotl);
-        e(f, Instruction::LocalSet(r));
+    for &(register, rotation) in &[(reg1, 13), (reg3, 16)] {
+        e(function, Instruction::LocalGet(register));
+        e(function, Instruction::I64Const(rotation));
+        e(function, Instruction::I64Rotl);
+        e(function, Instruction::LocalSet(register));
     }
-    for &(dst, x, y) in &[(b, b, a), (d, d, c)] {
-        e(f, Instruction::LocalGet(x));
-        e(f, Instruction::LocalGet(y));
-        e(f, Instruction::I64Xor);
-        e(f, Instruction::LocalSet(dst));
+    for &(destination, left, right) in &[(reg1, reg1, reg0), (reg3, reg3, reg2)] {
+        e(function, Instruction::LocalGet(left));
+        e(function, Instruction::LocalGet(right));
+        e(function, Instruction::I64Xor);
+        e(function, Instruction::LocalSet(destination));
     }
-    e(f, Instruction::LocalGet(a));
-    e(f, Instruction::I64Const(32));
-    e(f, Instruction::I64Rotl);
-    e(f, Instruction::LocalSet(a));
-    for &(dst, x, y) in &[(c, c, b), (a, a, d)] {
-        e(f, Instruction::LocalGet(x));
-        e(f, Instruction::LocalGet(y));
-        e(f, Instruction::I64Add);
-        e(f, Instruction::LocalSet(dst));
+    e(function, Instruction::LocalGet(reg0));
+    e(function, Instruction::I64Const(32));
+    e(function, Instruction::I64Rotl);
+    e(function, Instruction::LocalSet(reg0));
+    for &(destination, left, right) in &[(reg2, reg2, reg1), (reg0, reg0, reg3)] {
+        e(function, Instruction::LocalGet(left));
+        e(function, Instruction::LocalGet(right));
+        e(function, Instruction::I64Add);
+        e(function, Instruction::LocalSet(destination));
     }
-    for &(r, n) in &[(b, 17), (d, 21)] {
-        e(f, Instruction::LocalGet(r));
-        e(f, Instruction::I64Const(n));
-        e(f, Instruction::I64Rotl);
-        e(f, Instruction::LocalSet(r));
+    for &(register, rotation) in &[(reg1, 17), (reg3, 21)] {
+        e(function, Instruction::LocalGet(register));
+        e(function, Instruction::I64Const(rotation));
+        e(function, Instruction::I64Rotl);
+        e(function, Instruction::LocalSet(register));
     }
-    for &(dst, x, y) in &[(b, b, c), (d, d, a)] {
-        e(f, Instruction::LocalGet(x));
-        e(f, Instruction::LocalGet(y));
-        e(f, Instruction::I64Xor);
-        e(f, Instruction::LocalSet(dst));
+    for &(destination, left, right) in &[(reg1, reg1, reg2), (reg3, reg3, reg0)] {
+        e(function, Instruction::LocalGet(left));
+        e(function, Instruction::LocalGet(right));
+        e(function, Instruction::I64Xor);
+        e(function, Instruction::LocalSet(destination));
     }
-    e(f, Instruction::LocalGet(c));
-    e(f, Instruction::I64Const(32));
-    e(f, Instruction::I64Rotl);
-    e(f, Instruction::LocalSet(c));
+    e(function, Instruction::LocalGet(reg2));
+    e(function, Instruction::I64Const(32));
+    e(function, Instruction::I64Rotl);
+    e(function, Instruction::LocalSet(reg2));
 }
-fn reg(r: u8) -> u32 {
+const fn reg(r: u8) -> u32 {
     if r < 8 { REGS[r as usize] } else { R8 }
 }
 fn load_src(f: &mut Function, r: u8) {
@@ -118,9 +122,9 @@ fn emit_op(f: &mut Function, x: HIns, mem: bool) {
             e(f, Instruction::LocalSet(d));
             e(f, Instruction::LocalGet(d));
             if mem {
-                load_src(f, x.src)
+                load_src(f, x.src);
             } else {
-                e(f, Instruction::LocalGet(s))
+                e(f, Instruction::LocalGet(s));
             }
             e(f, Instruction::I64Mul);
             e(f, Instruction::LocalSet(d));
@@ -147,9 +151,9 @@ fn emit_op(f: &mut Function, x: HIns, mem: bool) {
             e(f, Instruction::LocalSet(d));
             e(f, Instruction::LocalGet(d));
             if mem {
-                load_src(f, x.src)
+                load_src(f, x.src);
             } else {
-                e(f, Instruction::LocalGet(s))
+                e(f, Instruction::LocalGet(s));
             }
             e(
                 f,
@@ -185,10 +189,10 @@ fn emit_program(f: &mut Function, p: &Program, mem: bool) {
     e(f, Instruction::Block(BlockType::Empty));
     e(f, Instruction::Loop(BlockType::Empty));
     if !mem {
-        snapshot(f)
+        snapshot(f);
     }
     for &x in &p.body {
-        emit_op(f, x, mem)
+        emit_op(f, x, mem);
     }
     if !p.unconditional {
         let bf = reg(p.body[0].dst);
@@ -217,7 +221,7 @@ fn phase(f: &mut Function, set: &ProgramSet, mem: bool) {
     e(f, Instruction::I32Const(32));
     e(f, Instruction::LocalSet(BC));
     for p in &set.programs {
-        emit_program(f, p, mem)
+        emit_program(f, p, mem);
     }
     e(f, Instruction::LocalGet(REP));
     e(f, Instruction::I32Const(1));
@@ -230,12 +234,12 @@ fn body(set: &ProgramSet) -> Function {
     let mut f = Function::new([(13, ValType::I64), (3, ValType::I32)]);
     let [k0, k1] = set.hash_key;
     for (r, v) in [
-        (R0, 0x736f6d6570736575 ^ k0),
-        (R1, 0x646f72616e646f6d ^ k1),
-        (R2, 0x6c7967656e657261 ^ k0),
-        (R3, 0x7465646279746573 ^ k1),
+        (R0, 0x736f_6d65_7073_6575 ^ k0),
+        (R1, 0x646f_7261_6e64_6f6d ^ k1),
+        (R2, 0x6c79_6765_6e65_7261 ^ k0),
+        (R3, 0x7465_6462_7974_6573 ^ k1),
     ] {
-        e(&mut f, Instruction::I64Const(v as i64));
+        e(&mut f, Instruction::I64Const(v.cast_signed()));
         e(&mut f, Instruction::LocalSet(r));
     }
     e(&mut f, Instruction::LocalGet(R3));
@@ -249,7 +253,7 @@ fn body(set: &ProgramSet) -> Function {
     e(&mut f, Instruction::LocalSet(R0));
     xor_const(&mut f, R2, 0xbb);
     for _ in 0..3 {
-        sip(&mut f, R0, R1, R2, R3)
+        sip(&mut f, R0, R1, R2, R3);
     }
     copy_local(&mut f, T0, R3);
     copy_local(&mut f, T1, R2);
@@ -260,7 +264,7 @@ fn body(set: &ProgramSet) -> Function {
     xor_const(&mut f, R2, k0);
     xor_const(&mut f, R3, k1);
     for _ in 0..4 {
-        sip(&mut f, R0, R1, R2, R3)
+        sip(&mut f, R0, R1, R2, R3);
     }
     copy_local(&mut f, R4, R3);
     copy_local(&mut f, R5, R2);
@@ -302,9 +306,11 @@ fn body(set: &ProgramSet) -> Function {
     e(&mut f, Instruction::End);
     f
 }
+#[must_use]
 pub fn compile(seed: &[u8; SEED_SIZE]) -> Vec<u8> {
     compile_program(&generate(seed))
 }
+#[must_use]
 pub fn compile_program(set: &ProgramSet) -> Vec<u8> {
     let mut m = Module::new();
     let mut ts = TypeSection::new();

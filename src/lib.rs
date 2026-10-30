@@ -33,19 +33,34 @@ pub struct HashWx {
     any(target_arch = "x86_64", target_arch = "aarch64")
 ))]
 impl HashWx {
+    /// Compile a HashWX seed into native machine code.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CompileError`] if the native assembler cannot be created or
+    /// the emitted code cannot be finalized.
     pub fn compile(seed: &[u8; 32]) -> Result<Self, CompileError> {
         Self::compile_program(&generate(seed))
     }
+
+    /// Compile an already-generated HashWX program into native machine code.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CompileError`] if the native assembler cannot be created or
+    /// the emitted code cannot be finalized.
     pub fn compile_program(program: &ProgramSet) -> Result<Self, CompileError> {
         Ok(Self {
             inner: native_backend::Compiled::compile(program)?,
         })
     }
     #[inline]
+    #[must_use]
     pub fn hash(&self, n: u64) -> u64 {
         self.inner.hash(n)
     }
-    pub fn code_len(&self) -> usize {
+    #[must_use]
+    pub const fn code_len(&self) -> usize {
         self.inner.code_len()
     }
 }
@@ -53,11 +68,11 @@ impl HashWx {
 #[cfg(feature = "hashx")]
 pub use hashx::{Error as HashXError, Runtime as HashXRuntime};
 
-/// Upstream-compatible HashX v1 execution mode.
+/// Upstream-compatible `HashX` v1 execution mode.
 ///
-/// HashX deliberately delegates program generation and execution to the
+/// `HashX` deliberately delegates program generation and execution to the
 /// maintained upstream implementation instead of duplicating its scheduler and
-/// constraint model. With the `native` feature on x86-64 or AArch64,
+/// constraint model. With the `native` feature on x86-64 or `AArch64`,
 /// [`HashX::compile`] requires the upstream native JIT; [`HashX::interpret`] is
 /// always available as a portable reference path.
 #[cfg(feature = "hashx")]
@@ -68,12 +83,22 @@ pub struct HashX {
 
 #[cfg(feature = "hashx")]
 impl HashX {
-    /// Build an interpreter-only HashX instance.
+    /// Build an interpreter-only `HashX` instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HashXError`] when the seed cannot satisfy HashX program
+    /// constraints.
     pub fn interpret(seed: &[u8]) -> Result<Self, HashXError> {
         Self::with_runtime(seed, hashx::RuntimeOption::InterpretOnly)
     }
 
-    /// Build a HashX instance and require native code generation.
+    /// Build a `HashX` instance and require native code generation.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HashXError`] when the seed cannot satisfy HashX program
+    /// constraints or native code generation fails.
     #[cfg(all(
         feature = "native",
         any(target_arch = "x86_64", target_arch = "aarch64")
@@ -90,19 +115,22 @@ impl HashX {
         })
     }
 
-    /// Return the runtime selected for this HashX instance.
+    /// Return the runtime selected for this `HashX` instance.
+    #[must_use]
     pub fn runtime(&self) -> HashXRuntime {
         self.inner.runtime()
     }
 
-    /// Calculate the first 64 bits of the HashX digest.
+    /// Calculate the first 64 bits of the `HashX` digest.
     #[inline]
+    #[must_use]
     pub fn hash(&self, nonce: u64) -> u64 {
         self.inner.hash_to_u64(nonce)
     }
 
-    /// Calculate the full 256-bit HashX digest.
+    /// Calculate the full 256-bit `HashX` digest.
     #[inline]
+    #[must_use]
     pub fn hash_bytes(&self, nonce: u64) -> [u8; 32] {
         self.inner.hash_to_bytes(nonce)
     }
