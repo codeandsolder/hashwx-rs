@@ -43,7 +43,12 @@ impl Op {
     const fn immediate(self, value: u64) -> u8 {
         match self {
             Self::MulOr | Self::MulXor | Self::MulAdd => {
-                [1, 9, 33][usize::from((value % 3).to_le_bytes()[0])]
+                let index = match value % 3 {
+                    0 => 0,
+                    1 => 1,
+                    _ => 2,
+                };
+                [1, 9, 33][index]
             }
             Self::Rmcg | Self::XorRor | Self::AddRor | Self::SubRor => {
                 1 + (value % 63).to_le_bytes()[0]
