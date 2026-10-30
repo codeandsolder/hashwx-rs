@@ -1,4 +1,7 @@
+#[cfg(feature = "native")]
 use std::time::Instant;
+
+#[cfg(feature = "native")]
 fn main() {
     let mut seed = [0u8; 32];
     for (i, b) in seed.iter_mut().enumerate() {
@@ -29,3 +32,6 @@ fn main() {
         );
     }
 }
+
+#[cfg(not(feature = "native"))]
+fn main() {}

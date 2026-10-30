@@ -1,4 +1,7 @@
-#![allow(clippy::useless_conversion)] // dynasm dynamic-register expansion uses .into() internally.
+#![expect(
+    clippy::useless_conversion,
+    reason = "dynasm dynamic-register expansion uses .into() internally"
+)]
 
 use crate::{
     CompileError,

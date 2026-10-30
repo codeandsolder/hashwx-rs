@@ -4,7 +4,7 @@ Rust implementation of [HashWX 1.0](https://github.com/tevador/hashwx), with see
 
 ## Features
 
-- `native` (default): x86-64 JIT using `dynasmrt`.
+- `native` (default): x86-64 and AArch64 JITs using `dynasmrt`.
 - `wasm`: emits a self-contained WebAssembly module exporting `hash(i64) -> i64`; no Wasm runtime is required by this crate.
 - Backend-neutral `ProgramSet` IR so additional native architectures can share the exact same HashWX program generator.
 
@@ -33,7 +33,7 @@ On the development x86-64 systems, the native backend generates roughly 9.4 KiB 
 
 ## Portability
 
-The HashWX program generator and `ProgramSet` are architecture-neutral. The native backend currently supports x86-64; AArch64 is planned. The `wasm` backend is available independently with `--no-default-features --features wasm`.
+The HashWX program generator and `ProgramSet` are architecture-neutral. The native backend supports x86-64 and AArch64. AArch64 is tested against the official vectors under QEMU; real-hardware benchmarking is still intentionally boringly pending. The `wasm` backend is available independently with `--no-default-features --features wasm`.
 
 ## License
 

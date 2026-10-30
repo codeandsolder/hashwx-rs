@@ -8,8 +8,10 @@ license="LGPL-3.0-or-later"
 readme="README.md"
 description="HashWX 1.0 with a fast native JIT and portable WebAssembly code generation"
 repository="https://github.com/codeandsolder/hashwx-rs"
+homepage="https://github.com/codeandsolder/hashwx-rs"
 keywords=["hashwx","proof-of-work","jit","wasm"]
 categories=["algorithms","cryptography","wasm"]
+publish=["crates-io"]
 [features]
 default=["native"]
 native=["dep:dynasm","dep:dynasmrt"]

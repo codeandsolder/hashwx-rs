@@ -14,18 +14,29 @@ impl core::fmt::Display for CompileError {
     }
 }
 impl std::error::Error for CompileError {}
+#[cfg(all(feature = "native", target_arch = "aarch64"))]
+use backend::aarch64 as native_backend;
 #[cfg(all(feature = "native", target_arch = "x86_64"))]
+use backend::x86_64 as native_backend;
+
+#[cfg(all(
+    feature = "native",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 pub struct HashWx {
-    inner: backend::x86_64::Compiled,
+    inner: native_backend::Compiled,
 }
-#[cfg(all(feature = "native", target_arch = "x86_64"))]
+#[cfg(all(
+    feature = "native",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 impl HashWx {
     pub fn compile(seed: &[u8; 32]) -> Result<Self, CompileError> {
         Self::compile_program(&generate(seed))
     }
     pub fn compile_program(program: &ProgramSet) -> Result<Self, CompileError> {
         Ok(Self {
-            inner: backend::x86_64::Compiled::compile(program)?,
+            inner: native_backend::Compiled::compile(program)?,
         })
     }
     #[inline]

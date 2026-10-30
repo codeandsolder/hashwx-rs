@@ -26,3 +26,13 @@ jobs:
       command: >-
         cargo check --all-features &&
         cargo check --no-default-features --features wasm
+
+  aarch64:
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@main
+    with:
+      rust-toolchain: "1.99.0"
+      rust-components: "clippy"
+      rust-targets: "aarch64-unknown-linux-musl"
+      command: >-
+        cargo clippy --target aarch64-unknown-linux-musl --all-features -- -D warnings &&
+        cargo check --target aarch64-unknown-linux-musl --all-features
