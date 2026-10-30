@@ -4,7 +4,7 @@ const SEED1: &[u8] = b"This is a test\0";
 const SEED2: &[u8] = b"Lorem ipsum dolor sit amet\0";
 
 #[test]
-fn upstream_vectors_interpreted() -> Result<(), hashwx::HashXError> {
+fn official_vectors_interpreted() -> Result<(), hashwx::HashXError> {
     let first = hashwx::HashX::interpret(SEED1)?;
     assert_eq!(first.hash(0), 0x98eacb7d56542f2b);
     assert_eq!(first.hash(123_456), 0xaf937ca60ad5bdae);
@@ -52,4 +52,39 @@ fn reports_rejected_seeds() {
         Err(hashwx::HashXError::ProgramConstraints)
     ));
     assert!(hashwx::HashX::interpret(b"\x5e\x93\x02\x00").is_ok());
+}
+
+#[test]
+fn local_generator_and_interpreter_match_upstream() {
+    use hashx::{HashXBuilder as UpstreamBuilder, RuntimeOption};
+
+    for index in 0_u32..64 {
+        let seed = format!("hashwx-rs native HashX differential seed {index}");
+        let local = hashwx::HashX::interpret(seed.as_bytes());
+        let mut upstream_builder = UpstreamBuilder::new();
+        upstream_builder.runtime(RuntimeOption::InterpretOnly);
+        let upstream = upstream_builder.build(seed.as_bytes());
+
+        match (local, upstream) {
+            (Ok(local), Ok(upstream)) => {
+                for nonce in [
+                    0,
+                    1,
+                    u64::from(index),
+                    123_456,
+                    0x0123_4567_89ab_cdef,
+                    u64::MAX,
+                ] {
+                    assert_eq!(local.hash_bytes(nonce), upstream.hash_to_bytes(nonce));
+                }
+            }
+            (
+                Err(hashwx::HashXError::ProgramConstraints),
+                Err(hashx::Error::ProgramConstraints),
+            ) => {}
+            (local, upstream) => panic!(
+                "local/upstream construction diverged for seed {seed:?}: local={local:?}, upstream={upstream:?}"
+            ),
+        }
+    }
 }
