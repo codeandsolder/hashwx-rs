@@ -68,7 +68,7 @@ impl Compiled {
         finalize(&state)
     }
 
-    pub(crate) fn code_len(&self) -> usize {
+    pub(crate) const fn code_len(&self) -> usize {
         self.code_len
     }
 }

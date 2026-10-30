@@ -1,13 +1,13 @@
 // Derived from tevador/hashwx@74b567a31276a4c5d7cb232a5b7639467f49f961.
 // HashWX is LGPL-3.0-or-later; this crate uses the same license.
 
-pub(super) const OPCODE_TEMPLATES: [u8; 35] = [
+pub const OPCODE_TEMPLATES: [u8; 35] = [
     0x07, 0x0b, 0x13, 0x23, 0x43, 0x0d, 0x15, 0x25, 0x45, 0x19, 0x29, 0x49, 0x31, 0x51, 0x61, 0x0e,
     0x16, 0x26, 0x46, 0x1a, 0x2a, 0x4a, 0x32, 0x52, 0x62, 0x1c, 0x2c, 0x4c, 0x34, 0x54, 0x64, 0x38,
     0x58, 0x68, 0x70,
 ];
 
-pub(super) const SRC_SHALLOW: [[u8; 8]; 256] = [
+pub const SRC_SHALLOW: [[u8; 8]; 256] = [
     [0, 2, 1, 4, 3, 6, 7, 5],
     [0, 3, 4, 1, 6, 7, 5, 2],
     [0, 4, 5, 6, 7, 1, 2, 3],
@@ -266,7 +266,7 @@ pub(super) const SRC_SHALLOW: [[u8; 8]; 256] = [
     [7, 6, 5, 4, 2, 1, 3, 0],
 ];
 
-pub(super) const SRC_DEEP: [[u8; 8]; 24] = [
+pub const SRC_DEEP: [[u8; 8]; 24] = [
     [0, 2, 7, 1, 3, 4, 5, 6],
     [0, 3, 1, 7, 2, 4, 5, 6],
     [0, 4, 1, 2, 7, 3, 5, 6],

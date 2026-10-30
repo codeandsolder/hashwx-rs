@@ -7,7 +7,7 @@ on:
 
 jobs:
   verify:
-    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@main
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@f360aee0f8e6f5c191901b61d94296471f320c3b # main
     with:
       rust-toolchain: "1.99.0"
       rust-components: "clippy rustfmt"
@@ -15,20 +15,23 @@ jobs:
         cargo fmt --check &&
         cargo clippy --all-targets --all-features -- -D warnings &&
         cargo test --release &&
+        cargo test --release --no-default-features --features native &&
+        cargo test --release --no-default-features --features hashx &&
         cargo test --release --no-default-features --features wasm &&
         cargo test --release --all-features &&
         cargo package --no-verify
 
   msrv:
-    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@main
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@f360aee0f8e6f5c191901b61d94296471f320c3b # main
     with:
-      rust-toolchain: "1.88.0"
+      rust-toolchain: "1.92.0"
       command: >-
         cargo check --all-features &&
+        cargo check --no-default-features --features hashx &&
         cargo check --no-default-features --features wasm
 
   aarch64:
-    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@main
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@f360aee0f8e6f5c191901b61d94296471f320c3b # main
     with:
       rust-toolchain: "1.99.0"
       rust-components: "clippy"
