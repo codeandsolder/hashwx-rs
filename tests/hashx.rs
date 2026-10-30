@@ -101,10 +101,11 @@ fn local_generator_and_interpreter_match_upstream() -> Result<(), String> {
                     feature = "native",
                     any(target_arch = "x86_64", target_arch = "aarch64")
                 ))]
-                let generated = generated.map_err(|error| error.to_string())?;
-                assert_eq!(generated.instructions().len(), hashwx::HASHX_PROGRAM_SIZE);
-                let native = hashwx::HashX::compile_program(&generated)
-                    .map_err(|error| error.to_string())?;
+                let native = {
+                    let generated = generated.map_err(|error| error.to_string())?;
+                    assert_eq!(generated.instructions().len(), hashwx::HASHX_PROGRAM_SIZE);
+                    hashwx::HashX::compile_program(&generated).map_err(|error| error.to_string())?
+                };
 
                 for nonce in [0, 1, index, 123_456, 0x0123_4567_89ab_cdef, u64::MAX] {
                     let expected = upstream.hash_to_bytes(nonce);
