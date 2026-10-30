@@ -55,4 +55,4 @@ HashX interpretation is portable with `--no-default-features --features hashx`. 
 
 ## License
 
-LGPL-3.0-or-later, matching upstream HashWX. Derived HashWX tables and algorithm implementation are based on tevador/hashwx. The local HashX compatibility model is derived from the Tor Project Arti `hashx` 0.10.0 implementation (LGPL-3.0-only); hashwx-rs provides its own execution backends. Upstream `hashx` remains a dev-only differential oracle.
+LGPL-3.0-only. HashWX is LGPL-3.0-or-later, while the in-tree HashX compatibility model is derived from the Tor Project Arti `hashx` 0.10.0 implementation under LGPL-3.0-only, so the combined crate uses the common LGPL-3.0-only terms. hashwx-rs provides its own HashX execution backends; upstream `hashx` remains a dev-only differential oracle.
