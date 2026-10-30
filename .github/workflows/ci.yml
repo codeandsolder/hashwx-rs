@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@main
+    with:
+      rust-toolchain: "1.99.0"
+      rust-components: "clippy rustfmt"
+      command: >-
+        cargo fmt --check &&
+        cargo clippy --all-targets --all-features -- -D warnings &&
+        cargo test --release &&
+        cargo test --release --no-default-features --features wasm &&
+        cargo test --release --all-features &&
+        cargo package --no-verify
+
+  msrv:
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@main
+    with:
+      rust-toolchain: "1.88.0"
+      command: >-
+        cargo check --all-features &&
+        cargo check --no-default-features --features wasm

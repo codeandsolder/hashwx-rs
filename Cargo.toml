@@ -1,0 +1,25 @@
+
+[package]
+name="hashwx"
+version="0.1.0"
+edition="2024"
+rust-version="1.88"
+license="LGPL-3.0-or-later"
+readme="README.md"
+description="HashWX 1.0 with a fast native JIT and portable WebAssembly code generation"
+repository="https://github.com/codeandsolder/hashwx-rs"
+keywords=["hashwx","proof-of-work","jit","wasm"]
+categories=["algorithms","cryptography","wasm"]
+[features]
+default=["native"]
+native=["dep:dynasm","dep:dynasmrt"]
+wasm=["dep:wasm-encoder"]
+[target.'cfg(any(target_arch="x86_64",target_arch="aarch64"))'.dependencies]
+dynasm={version="5.1",optional=true}
+dynasmrt={version="5.1",optional=true}
+[dependencies]
+wasm-encoder={version="0.262",optional=true}
+[dev-dependencies]
+wasmparser="0.262"
+[lints.rust]
+unsafe_op_in_unsafe_fn="deny"
