@@ -6,6 +6,12 @@ const SEED1: &[u8] = b"This is a test\0";
 const SEED2: &[u8] = b"Lorem ipsum dolor sit amet\0";
 
 #[test]
+fn hashx_is_send_sync() {
+    fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<hashwx::HashX>();
+}
+
+#[test]
 fn official_vectors_interpreted() -> Result<(), hashwx::HashXError> {
     let first = hashwx::HashX::interpret(SEED1)?;
     assert_eq!(first.hash(0), 0x98ea_cb7d_5654_2f2b);
