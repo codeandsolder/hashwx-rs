@@ -168,7 +168,7 @@ const fn read_u64(seed: &[u8; 32], offset: usize) -> u64 {
         seed[offset + 7],
     ])
 }
-fn key(seed: &[u8; 32], offset: usize) -> [u64; 2] {
+const fn key(seed: &[u8; 32], offset: usize) -> [u64; 2] {
     [read_u64(seed, offset), read_u64(seed, offset + 8)]
 }
 fn one(rng: &mut SipRng, last: bool, deep: bool) -> Program {
