@@ -17,13 +17,13 @@ use rand::SipRand;
 use register::RegisterFile;
 use siphash::SipState;
 
-pub(crate) use program::Program;
+pub use program::Program;
 pub use program::{Instruction, NUM_INSTRUCTIONS};
 #[cfg(all(
     feature = "native",
     any(target_arch = "x86_64", target_arch = "aarch64")
 ))]
-pub(crate) use register::RegisterFile as NativeRegisterFile;
+pub use register::RegisterFile as NativeRegisterFile;
 pub use register::RegisterId;
 
 /// Immutable generated `HashX` program and seed-derived register key.
