@@ -10,3 +10,4 @@
 - Execute generated WebAssembly against the official HashWX vectors in tests.
 - Add reproducible locked CI, strict rustdoc/public-API checks, Windows cross-checking, and verified package/publish dry runs.
 - Execute AArch64 native JIT vector/differential tests under QEMU and expand deterministic generator/backend corpus coverage.
+- Execute the portable HashX/HashWX/Wasm paths on ARMv7 hard-float Linux under QEMU and keep an all-features ARMv7 cross-check in CI.
