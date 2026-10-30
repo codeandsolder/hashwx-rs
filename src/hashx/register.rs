@@ -28,8 +28,8 @@ impl fmt::Debug for RegisterId {
 
 impl RegisterId {
     /// Cast this `RegisterId` into a plain usize
-    #[inline(always)]
-    pub(crate) const fn as_usize(&self) -> usize {
+    #[inline]
+    pub(crate) const fn as_usize(self) -> usize {
         self.0 as usize
     }
 
@@ -37,15 +37,15 @@ impl RegisterId {
     ///
     /// (Recall that hashx has 8 virtual registers,
     /// so the output of this method is always in range 0..=7.)
-    #[inline(always)]
-    pub(crate) const fn as_u8(&self) -> u8 {
+    #[inline]
+    pub(crate) const fn as_u8(self) -> u8 {
         self.0
     }
 
     /// Create an iterator over all `RegisterId`
-    #[inline(always)]
+    #[inline]
     pub(crate) fn all() -> impl Iterator<Item = Self> {
-        (0_u8..(NUM_REGISTERS as u8)).map(RegisterId)
+        (0_u8..8).map(RegisterId)
     }
 }
 
@@ -74,22 +74,22 @@ impl fmt::Debug for RegisterSet {
 
 impl RegisterSet {
     /// Number of registers still contained in this set
-    #[inline(always)]
+    #[inline]
     pub(crate) const fn len(&self) -> usize {
         self.0.len()
     }
 
     /// Test if a register is contained in the set.
-    #[inline(always)]
+    #[inline]
     pub(crate) fn contains(&self, id: RegisterId) -> bool {
         self.0.contains(&id)
     }
 
     /// Build a new `RegisterSet` from each register for which a predicate
     /// function returns `true`.
-    #[inline(always)]
+    #[inline]
     pub(crate) fn from_filter<P: FnMut(RegisterId) -> bool>(mut predicate: P) -> Self {
-        let mut result: Self = Default::default();
+        let mut result = Self::default();
         for r in RegisterId::all() {
             if predicate(r) {
                 result.0.push(r);
@@ -102,7 +102,7 @@ impl RegisterSet {
     ///
     /// The supplied index must be less than the [`Self::len()`] of this set.
     /// Panics if the index is out of range.
-    #[inline(always)]
+    #[inline]
     pub(crate) fn index(&self, index: usize) -> RegisterId {
         self.0[index]
     }
@@ -120,20 +120,20 @@ pub struct RegisterFile([u64; NUM_REGISTERS]);
 
 impl RegisterFile {
     /// Load a word from the register file.
-    #[inline(always)]
+    #[inline]
     pub(crate) const fn load(&self, id: RegisterId) -> u64 {
         self.0[id.as_usize()]
     }
 
     /// Store a word into the register file.
-    #[inline(always)]
+    #[inline]
     pub(crate) const fn store(&mut self, id: RegisterId, value: u64) {
         self.0[id.as_usize()] = value;
     }
 
     /// Initialize a new `HashX` register file, given a key (derived from
     /// the seed) and the user-specified hash input word.
-    #[inline(always)]
+    #[inline]
     pub(crate) const fn new(key: SipState, input: u64) -> Self {
         Self(siphash24_ctr(key, input))
     }
@@ -144,7 +144,7 @@ impl RegisterFile {
     /// This splits the register file into two halves, mixes in the siphash
     /// keys again to "remove bias toward 0 caused by multiplications", and
     /// runs one siphash round on each half before recombining them.
-    #[inline(always)]
+    #[inline]
     pub(crate) const fn digest(&self, key: SipState) -> [u64; 4] {
         let mut x = SipState {
             v0: self.0[0].wrapping_add(key.v0),

@@ -4,7 +4,7 @@
 
 use crate::hashx::HashXError;
 use crate::hashx::constraints::{self, Pass, RegisterWriter, Validator};
-use crate::hashx::program::{Instruction, InstructionVec, Opcode};
+use crate::hashx::program::{Instruction, InstructionVec, NUM_INSTRUCTIONS, Opcode};
 use crate::hashx::rand::RngBuffer;
 use crate::hashx::register::{RegisterId, RegisterSet};
 use crate::hashx::scheduler::{InstructionPlan, Scheduler};
@@ -36,8 +36,8 @@ mod model {
     /// Normal cycles are all replaced by `ImmediateSrc` if this is the retry
     /// pass, so that retries won't need to attempt source register selection
     /// in this case.
-    #[inline(always)]
-    pub(super) fn choose_opcode_selector(pass: Pass, sub_cycle: SubCycle) -> OpcodeSelector {
+    #[inline]
+    pub(super) const fn choose_opcode_selector(pass: Pass, sub_cycle: SubCycle) -> OpcodeSelector {
         let n = sub_cycle.as_usize() % 36;
         if n == 1 {
             OpcodeSelector::Target
@@ -110,7 +110,7 @@ pub struct Generator<'r, R: Rng> {
 
 impl<'r, R: Rng> Generator<'r, R> {
     /// Create a fresh program generator from a random number generator state.
-    #[inline(always)]
+    #[inline]
     pub(crate) fn new(rng: &'r mut R) -> Self {
         Generator {
             rng: RngBuffer::new(rng),
@@ -127,21 +127,16 @@ impl<'r, R: Rng> Generator<'r, R> {
     ///
     /// The choice is perfectly uniform only if the register set is a power of
     /// two length. Uniformity is not critical here.
-    #[inline(always)]
+    #[inline]
     fn select_register(&mut self, reg_options: &RegisterSet) -> Result<RegisterId, ()> {
         match reg_options.len() {
             0 => Err(()),
             1 => Ok(reg_options.index(0)),
             num_options => {
-                let num_options: u32 = num_options
-                    .try_into()
-                    .expect("register set length always fits in u32");
+                let num_options = u32::try_from(num_options).map_err(|_| ())?;
                 let index = self.rng.next_u32() % num_options;
-                Ok(reg_options.index(
-                    index
-                        .try_into()
-                        .expect("register set length always fits in usize"),
-                ))
+                let index = usize::try_from(index).map_err(|_| ())?;
+                Ok(reg_options.index(index))
             }
         }
     }
@@ -152,21 +147,21 @@ impl<'r, R: Rng> Generator<'r, R> {
     /// For uniformity and efficiency it's best if the length is also a power
     /// of two. All actual operation lists used by `HashX` have power-of-two
     /// lengths.
-    #[inline(always)]
+    #[inline]
     fn select_op<'a, T, const SIZE: usize>(&mut self, options: &'a [T; SIZE]) -> &'a T {
-        &options[(self.rng.next_u8() as usize) % options.len()]
+        &options[usize::from(self.rng.next_u8()) % options.len()]
     }
 
     /// Generate a random u32 bit mask, with a constant number of bits set.
     ///
     /// This uses an iterative algorithm that selects one bit at a time
     /// using a u8 from the Rng for each, discarding duplicates.
-    #[inline(always)]
+    #[inline]
     fn select_constant_weight_bit_mask(&mut self, num_ones: usize) -> u32 {
         let mut result = 0_u32;
         let mut count = 0;
         while count < num_ones {
-            let bit = 1 << ((self.rng.next_u8() as usize) % 32);
+            let bit = 1 << (usize::from(self.rng.next_u8()) % 32);
             if (result & bit) == 0 {
                 result |= bit;
                 count += 1;
@@ -179,7 +174,7 @@ impl<'r, R: Rng> Generator<'r, R> {
     ///
     /// Iteratively picks a random u32, masking it, and discarding results that
     /// would be all zero.
-    #[inline(always)]
+    #[inline]
     fn select_nonzero_u32(&mut self, mask: u32) -> u32 {
         loop {
             let result = self.rng.next_u32() & mask;
@@ -195,13 +190,13 @@ impl<'r, R: Rng> Generator<'r, R> {
     /// state can't be advanced any further. Runs the whole-program validator.
     /// Returns with [`HashXError::ProgramConstraints`] if the program fails these
     /// checks. This happens in normal use on a small fraction of seed values.
-    #[inline(always)]
+    #[inline]
     pub(crate) fn generate_program(
         &mut self,
         output: &mut InstructionVec,
     ) -> Result<(), HashXError> {
-        assert!(output.is_empty());
-        while !output.is_full() {
+        assert_eq!(output.len(), 0);
+        while output.len() < NUM_INSTRUCTIONS {
             match self.generate_instruction() {
                 Err(()) => break,
                 Ok((inst, regw)) => {
@@ -228,7 +223,7 @@ impl<'r, R: Rng> Generator<'r, R> {
     ///
     /// This only returns `Err(())` if we've hit a stopping condition for the
     /// program.
-    #[inline(always)]
+    #[inline]
     fn generate_instruction(&mut self) -> Result<(Instruction, RegisterWriter), ()> {
         loop {
             if let Ok(result) = self.instruction_gen_attempt(Pass::Original) {
@@ -243,7 +238,7 @@ impl<'r, R: Rng> Generator<'r, R> {
 
     /// Choose an opcode using the current [`OpcodeSelector`], subject to
     /// stateful constraints on adjacent opcode choices.
-    #[inline(always)]
+    #[inline]
     fn choose_opcode(&mut self, pass: Pass) -> Opcode {
         let op = loop {
             let sub_cycle = self.scheduler.instruction_stream_sub_cycle();
@@ -261,13 +256,13 @@ impl<'r, R: Rng> Generator<'r, R> {
     /// This picks an [`OpcodeSelector`], chooses an opcode, then finishes
     /// choosing the opcode-specific parts of the instruction. Each of these
     /// choices affects the Rng state, and may fail if conditions are not met.
-    #[inline(always)]
+    #[inline]
     fn instruction_gen_attempt(&mut self, pass: Pass) -> Result<(Instruction, RegisterWriter), ()> {
         let op = self.choose_opcode(pass);
         let plan = self.scheduler.instruction_plan(op)?;
-        let (inst, regw) = self.choose_instruction_with_opcode_plan(op, pass, &plan)?;
+        let (inst, regw) = self.choose_instruction_with_opcode_plan(op, pass, plan)?;
         debug_assert_eq!(inst.opcode(), op);
-        self.scheduler.commit_instruction_plan(&plan, &inst);
+        self.scheduler.commit_instruction_plan(plan, &inst);
         Ok((inst, regw))
     }
 
@@ -276,7 +271,7 @@ impl<'r, R: Rng> Generator<'r, R> {
     fn choose_src_reg(
         &mut self,
         op: Opcode,
-        timing_plan: &InstructionPlan,
+        timing_plan: InstructionPlan,
     ) -> Result<RegisterId, ()> {
         let src_set = RegisterSet::from_filter(|src| {
             self.scheduler
@@ -288,13 +283,13 @@ impl<'r, R: Rng> Generator<'r, R> {
 
     /// Choose both a source and destination register using a normal
     /// [`RegisterWriter`] for two-operand instructions.
-    #[inline(always)]
+    #[inline]
     fn choose_src_dst_regs(
         &mut self,
         op: Opcode,
         pass: Pass,
         writer_info_fn: fn(RegisterId) -> RegisterWriter,
-        timing_plan: &InstructionPlan,
+        timing_plan: InstructionPlan,
     ) -> Result<(RegisterId, RegisterId, RegisterWriter), ()> {
         let src = self.choose_src_reg(op, timing_plan)?;
         let writer_info = writer_info_fn(src);
@@ -305,13 +300,13 @@ impl<'r, R: Rng> Generator<'r, R> {
     /// Choose both a source and destination register, with a custom
     /// [`RegisterWriter`] constraint that doesn't depend on source
     /// register choice.
-    #[inline(always)]
+    #[inline]
     fn choose_src_dst_regs_with_writer_info(
         &mut self,
         op: Opcode,
         pass: Pass,
         writer_info: RegisterWriter,
-        timing_plan: &InstructionPlan,
+        timing_plan: InstructionPlan,
     ) -> Result<(RegisterId, RegisterId), ()> {
         let src = self.choose_src_reg(op, timing_plan)?;
         let dst = self.choose_dst_reg(op, pass, writer_info, Some(src), timing_plan)?;
@@ -327,7 +322,7 @@ impl<'r, R: Rng> Generator<'r, R> {
         pass: Pass,
         writer_info: RegisterWriter,
         src: Option<RegisterId>,
-        timing_plan: &InstructionPlan,
+        timing_plan: InstructionPlan,
     ) -> Result<RegisterId, ()> {
         let validator = self
             .validator
@@ -345,12 +340,12 @@ impl<'r, R: Rng> Generator<'r, R> {
     /// [`Instruction`].
     ///
     /// This can fail if register selection fails.
-    #[inline(always)]
+    #[inline]
     fn choose_instruction_with_opcode_plan(
         &mut self,
         op: Opcode,
         pass: Pass,
-        plan: &InstructionPlan,
+        plan: InstructionPlan,
     ) -> Result<(Instruction, RegisterWriter), ()> {
         Ok(match op {
             Opcode::Target => (Instruction::Target, RegisterWriter::None),
@@ -394,7 +389,7 @@ impl<'r, R: Rng> Generator<'r, R> {
 
             Opcode::AddShift => {
                 let regw = RegisterWriter::AddSub;
-                let left_shift = (self.rng.next_u32() & 3) as u8;
+                let left_shift = (self.rng.next_u32() & 3).to_le_bytes()[0];
                 let (src, dst, regw) = self.choose_src_dst_regs(op, pass, regw, plan)?;
                 (
                     Instruction::AddShift {
@@ -408,21 +403,21 @@ impl<'r, R: Rng> Generator<'r, R> {
 
             Opcode::AddConst => {
                 let regw = RegisterWriter::AddConst;
-                let src = self.select_nonzero_u32(u32::MAX) as i32;
+                let src = i32::from_ne_bytes(self.select_nonzero_u32(u32::MAX).to_ne_bytes());
                 let dst = self.choose_dst_reg(op, pass, regw, None, plan)?;
                 (Instruction::AddConst { src, dst }, regw)
             }
 
             Opcode::XorConst => {
                 let regw = RegisterWriter::XorConst;
-                let src = self.select_nonzero_u32(u32::MAX) as i32;
+                let src = i32::from_ne_bytes(self.select_nonzero_u32(u32::MAX).to_ne_bytes());
                 let dst = self.choose_dst_reg(op, pass, regw, None, plan)?;
                 (Instruction::XorConst { src, dst }, regw)
             }
 
             Opcode::Rotate => {
                 let regw = RegisterWriter::Rotate;
-                let right_rotate: u8 = self.select_nonzero_u32(63) as u8;
+                let right_rotate = self.select_nonzero_u32(63).to_le_bytes()[0];
                 let dst = self.choose_dst_reg(op, pass, regw, None, plan)?;
                 (Instruction::Rotate { dst, right_rotate }, regw)
             }
@@ -434,7 +429,7 @@ impl<'r, R: Rng> Generator<'r, R> {
     ///
     /// Returns `Ok(())` on success or `Err(())` if the new state would no
     /// longer be valid for program generation and we're done writing code.
-    #[inline(always)]
+    #[inline]
     fn commit_instruction_state(
         &mut self,
         inst: &Instruction,
@@ -466,8 +461,8 @@ enum OpcodeSelector {
 
 impl OpcodeSelector {
     /// Apply the selector, advancing the Rng state and returning an Opcode.
-    #[inline(always)]
-    fn apply<R: Rng>(&self, generator: &mut Generator<'_, R>) -> Opcode {
+    #[inline]
+    fn apply<R: Rng>(self, generator: &mut Generator<'_, R>) -> Opcode {
         match self {
             Self::Target => Opcode::Target,
             Self::Branch => Opcode::Branch,

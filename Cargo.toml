@@ -13,7 +13,7 @@ publish=["crates-io"]
 
 [features]
 default=["native","hashx"]
-hashx=["dep:arrayvec","dep:blake2","dep:fixed-capacity-vec","dep:rand_core"]
+hashx=["dep:arrayvec","dep:blake2","dep:rand_core"]
 native=["dep:dynasm","dep:dynasmrt"]
 wasm=["dep:wasm-encoder"]
 
@@ -24,12 +24,11 @@ dynasmrt={version="5.1",optional=true}
 [dependencies]
 arrayvec={version="0.7.3",optional=true}
 blake2={version="0.10.6",optional=true}
-fixed-capacity-vec={version="1.0",optional=true}
 rand_core={version="0.10.1",optional=true}
 wasm-encoder={version="0.262",optional=true}
 
 [dev-dependencies]
-hashx={version="0.10",default-features=false,features=["compiler"]}
+hashx={version="0.10",default-features=false}
 wasmparser="0.262"
 
 [lints.rust]

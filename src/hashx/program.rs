@@ -5,7 +5,6 @@
 use crate::hashx::HashXError;
 use crate::hashx::generator::Generator;
 use crate::hashx::register::{RegisterFile, RegisterId};
-use fixed_capacity_vec::FixedCapacityVec;
 use rand_core::Rng;
 use std::fmt;
 use std::ops::BitXor;
@@ -20,8 +19,8 @@ pub const NUM_INSTRUCTIONS: usize = 512;
 /// Type alias for a full-size array of [`Instruction`]s
 pub type InstructionArray = [Instruction; NUM_INSTRUCTIONS];
 
-/// Type alias for a [`FixedCapacityVec`] that can build [`InstructionArray`]s
-pub type InstructionVec = FixedCapacityVec<Instruction, NUM_INSTRUCTIONS>;
+/// Growable instruction buffer used while constructing a fixed-size program.
+pub type InstructionVec = Vec<Instruction>;
 
 /// Define the `HashX` virtual instruction set
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -154,7 +153,7 @@ pub enum Opcode {
 
 impl Instruction {
     /// Get this instruction's [`Opcode`].
-    #[inline(always)]
+    #[inline]
     pub(crate) const fn opcode(&self) -> Opcode {
         match self {
             Self::AddConst { .. } => Opcode::AddConst,
@@ -172,20 +171,19 @@ impl Instruction {
     }
 
     /// Get this instruction's destination register, if any.
-    #[inline(always)]
+    #[inline]
     pub(crate) const fn destination(&self) -> Option<RegisterId> {
         match self {
-            Self::AddConst { dst, .. } => Some(*dst),
-            Self::AddShift { dst, .. } => Some(*dst),
-            Self::Branch { .. } => None,
-            Self::Mul { dst, .. } => Some(*dst),
-            Self::Rotate { dst, .. } => Some(*dst),
-            Self::SMulH { dst, .. } => Some(*dst),
-            Self::Sub { dst, .. } => Some(*dst),
-            Self::Target => None,
-            Self::UMulH { dst, .. } => Some(*dst),
-            Self::Xor { dst, .. } => Some(*dst),
-            Self::XorConst { dst, .. } => Some(*dst),
+            Self::AddConst { dst, .. }
+            | Self::AddShift { dst, .. }
+            | Self::Mul { dst, .. }
+            | Self::Rotate { dst, .. }
+            | Self::SMulH { dst, .. }
+            | Self::Sub { dst, .. }
+            | Self::UMulH { dst, .. }
+            | Self::Xor { dst, .. }
+            | Self::XorConst { dst, .. } => Some(*dst),
+            Self::Branch { .. } | Self::Target => None,
         }
     }
 }
@@ -212,14 +210,13 @@ impl Program {
     /// will happen once per several thousand random seeds, and the caller
     /// should skip to another seed.
     pub(crate) fn generate<T: Rng>(rng: &mut T) -> Result<Self, HashXError> {
-        let mut instructions = FixedCapacityVec::new();
+        let mut instructions = Vec::with_capacity(NUM_INSTRUCTIONS);
         Generator::new(rng).generate_program(&mut instructions)?;
-        Ok(Self(
-            instructions
-                .try_into()
-                .map_err(|_| ())
-                .expect("wrong length!"),
-        ))
+        let boxed: Box<[Instruction]> = instructions.into_boxed_slice();
+        let program: Box<InstructionArray> = boxed
+            .try_into()
+            .map_err(|_| HashXError::ProgramConstraints)?;
+        Ok(Self(program))
     }
 
     /// Reference implementation for `Program` behavior
@@ -229,7 +226,7 @@ impl Program {
     pub(crate) fn interpret(&self, regs: &mut RegisterFile) {
         let mut program_counter = 0;
         let mut allow_branch = true;
-        let mut branch_target = None;
+        let mut branch_target = 0_usize;
         let mut mulh_result: u32 = 0;
 
         /// Common implementation for binary operations on registers
@@ -246,22 +243,8 @@ impl Program {
         macro_rules! binary_const_op {
             ($dst:ident, $src:ident, $fn:ident, $pc:ident) => {{
                 let a = regs.load(*$dst);
-                let b_sign_extended = i64::from(*$src) as u64;
+                let b_sign_extended = u64::from_ne_bytes(i64::from(*$src).to_ne_bytes());
                 regs.store(*$dst, a.$fn(b_sign_extended));
-                $pc
-            }};
-        }
-
-        /// Common implementation for wide multiply operations
-        ///
-        /// This stores the low 32 bits of its result for later branch tests.
-        macro_rules! mulh_op {
-            ($dst:ident, $src:ident, $sign:ty, $wide:ty, $pc:ident) => {{
-                let a = <$wide>::from(regs.load(*$dst) as $sign);
-                let b = <$wide>::from(regs.load(*$src) as $sign);
-                let r = (a.wrapping_mul(b) >> 64) as u64;
-                mulh_result = r as u32;
-                regs.store(*$dst, r);
                 $pc
             }};
         }
@@ -270,7 +253,7 @@ impl Program {
             let next_pc = program_counter + 1;
             program_counter = match &self.0[program_counter] {
                 Instruction::Target => {
-                    branch_target = Some(program_counter);
+                    branch_target = program_counter;
                     next_pc
                 }
 
@@ -278,7 +261,6 @@ impl Program {
                     if allow_branch && (mask & mulh_result) == 0 {
                         allow_branch = false;
                         branch_target
-                            .expect("generated programs always have a target before branch")
                     } else {
                         next_pc
                     }
@@ -306,8 +288,34 @@ impl Program {
                 Instruction::Mul { dst, src } => binary_reg_op!(dst, src, wrapping_mul, next_pc),
                 Instruction::Sub { dst, src } => binary_reg_op!(dst, src, wrapping_sub, next_pc),
                 Instruction::Xor { dst, src } => binary_reg_op!(dst, src, bitxor, next_pc),
-                Instruction::UMulH { dst, src } => mulh_op!(dst, src, u64, u128, next_pc),
-                Instruction::SMulH { dst, src } => mulh_op!(dst, src, i64, i128, next_pc),
+                Instruction::UMulH { dst, src } => {
+                    let product =
+                        u128::from(regs.load(*dst)).wrapping_mul(u128::from(regs.load(*src)));
+                    let bytes = product.to_le_bytes();
+                    let result = u64::from_le_bytes([
+                        bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14],
+                        bytes[15],
+                    ]);
+                    let low = result.to_le_bytes();
+                    mulh_result = u32::from_le_bytes([low[0], low[1], low[2], low[3]]);
+                    regs.store(*dst, result);
+                    next_pc
+                }
+                Instruction::SMulH { dst, src } => {
+                    let left = i64::from_ne_bytes(regs.load(*dst).to_ne_bytes());
+                    let right = i64::from_ne_bytes(regs.load(*src).to_ne_bytes());
+                    let bytes = i128::from(left)
+                        .wrapping_mul(i128::from(right))
+                        .to_le_bytes();
+                    let result = u64::from_le_bytes([
+                        bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14],
+                        bytes[15],
+                    ]);
+                    let low = result.to_le_bytes();
+                    mulh_result = u32::from_le_bytes([low[0], low[1], low[2], low[3]]);
+                    regs.store(*dst, result);
+                    next_pc
+                }
                 Instruction::XorConst { dst, src } => binary_const_op!(dst, src, bitxor, next_pc),
                 Instruction::AddConst { dst, src } => {
                     binary_const_op!(dst, src, wrapping_add, next_pc)
@@ -318,7 +326,7 @@ impl Program {
 }
 
 impl<'a> From<&'a Program> for &'a InstructionArray {
-    #[inline(always)]
+    #[inline]
     fn from(prog: &'a Program) -> Self {
         &prog.0
     }

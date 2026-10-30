@@ -6,8 +6,8 @@ const SEED2: &[u8] = b"Lorem ipsum dolor sit amet\0";
 #[test]
 fn official_vectors_interpreted() -> Result<(), hashwx::HashXError> {
     let first = hashwx::HashX::interpret(SEED1)?;
-    assert_eq!(first.hash(0), 0x98eacb7d56542f2b);
-    assert_eq!(first.hash(123_456), 0xaf937ca60ad5bdae);
+    assert_eq!(first.hash(0), 0x98ea_cb7d_5654_2f2b);
+    assert_eq!(first.hash(123_456), 0xaf93_7ca6_0ad5_bdae);
     assert_eq!(
         first.hash_bytes(0),
         [
@@ -18,8 +18,8 @@ fn official_vectors_interpreted() -> Result<(), hashwx::HashXError> {
     );
 
     let second = hashwx::HashX::interpret(SEED2)?;
-    assert_eq!(second.hash(123_456), 0xaab0bbf45b153dab);
-    assert_eq!(second.hash(987_654_321_123_456_789), 0x7432327c49f0fe8d);
+    assert_eq!(second.hash(123_456), 0xaab0_bbf4_5b15_3dab);
+    assert_eq!(second.hash(987_654_321_123_456_789), 0x7432_327c_49f0_fe8d);
     Ok(())
 }
 
@@ -55,7 +55,7 @@ fn reports_rejected_seeds() {
 }
 
 #[test]
-fn local_generator_and_interpreter_match_upstream() {
+fn local_generator_and_interpreter_match_upstream() -> Result<(), String> {
     use hashx::{HashXBuilder as UpstreamBuilder, RuntimeOption};
 
     for index in 0_u32..64 {
@@ -82,9 +82,12 @@ fn local_generator_and_interpreter_match_upstream() {
                 Err(hashwx::HashXError::ProgramConstraints),
                 Err(hashx::Error::ProgramConstraints),
             ) => {}
-            (local, upstream) => panic!(
-                "local/upstream construction diverged for seed {seed:?}: local={local:?}, upstream={upstream:?}"
-            ),
+            (local, upstream) => {
+                return Err(format!(
+                    "local/upstream construction diverged for seed {seed:?}: local={local:?}, upstream={upstream:?}"
+                ));
+            }
         }
     }
+    Ok(())
 }

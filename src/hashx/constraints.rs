@@ -36,7 +36,7 @@ mod model {
     pub(super) const REQUIRED_MULTIPLIES: usize = 192;
 
     /// Determine which ops count when testing [`REQUIRED_MULTIPLIES`].
-    #[inline(always)]
+    #[inline]
     pub(super) const fn is_multiply(op: Opcode) -> bool {
         matches!(op, Opcode::Mul | Opcode::SMulH | Opcode::UMulH)
     }
@@ -44,7 +44,7 @@ mod model {
     /// Does an instruction prohibit using the same register for src and dst?
     ///
     /// Meaningful only for ops that have both a source and destination register.
-    #[inline(always)]
+    #[inline]
     pub(super) const fn disallow_src_is_dst(op: Opcode) -> bool {
         matches!(
             op,
@@ -64,7 +64,7 @@ mod model {
     pub(super) const DISALLOW_REGISTER_FOR_ADDSHIFT: RegisterId = register::R5;
 
     /// Should `proposed` be rejected as the immediate successor of `previous`?
-    #[inline(always)]
+    #[inline]
     pub(super) fn disallow_opcode_pair(previous: Opcode, proposed: Opcode) -> bool {
         match proposed {
             // Never rejected at this stage
@@ -84,7 +84,7 @@ mod model {
     /// written using `last_writer`?
     ///
     /// Requires the current [`Pass`].
-    #[inline(always)]
+    #[inline]
     pub(super) fn writer_pair_allowed(
         pass: Pass,
         last_writer: RegisterWriter,
@@ -195,16 +195,16 @@ pub struct Validator {
 
 impl Validator {
     /// Construct a new empty Validator.
-    #[inline(always)]
+    #[inline]
     pub(crate) fn new() -> Self {
         Self {
-            writer_map: RegisterWriterMap::new(),
+            writer_map: RegisterWriterMap::default(),
             multiply_count: 0,
         }
     }
 
     /// Commit a new instruction to the validator state.
-    #[inline(always)]
+    #[inline]
     pub(crate) fn commit_instruction(&mut self, inst: &Instruction, regw: RegisterWriter) {
         if model::is_multiply(inst.opcode()) {
             self.multiply_count += 1;
@@ -219,7 +219,7 @@ impl Validator {
     ///
     /// Once the whole program is assembled, `HashX` still has a chance to reject
     /// it if it fails certain criteria.
-    #[inline(always)]
+    #[inline]
     pub(crate) fn check_whole_program(
         &self,
         scheduler: &Scheduler,
@@ -240,7 +240,7 @@ impl Validator {
     ///
     /// Returns a `DstRegisterChecker` which can be used to test each specific
     /// destination `RegisterId` quickly.
-    #[inline(always)]
+    #[inline]
     pub(crate) fn dst_registers_allowed(
         &self,
         op: Opcode,
@@ -280,7 +280,7 @@ pub struct DstRegisterChecker<'v> {
 impl DstRegisterChecker<'_> {
     /// Check a single destination register for usability, using context from
     /// [`Validator::dst_registers_allowed`]
-    #[inline(always)]
+    #[inline]
     pub(crate) fn check(&self, dst: RegisterId) -> bool {
         // One register specified by DISALLOW_REGISTER_FOR_ADDSHIFT can't
         // be used as destination for AddShift.
@@ -301,7 +301,7 @@ impl DstRegisterChecker<'_> {
 
 /// Figure out the allowed register set for an operation, given what's available
 /// in the schedule.
-#[inline(always)]
+#[inline]
 pub fn src_registers_allowed(available: RegisterSet, op: Opcode) -> RegisterSet {
     // HashX defines a special case DISALLOW_REGISTER_FOR_ADDSHIFT for
     // destination registers, and it also includes a look-ahead
@@ -316,7 +316,7 @@ pub fn src_registers_allowed(available: RegisterSet, op: Opcode) -> RegisterSet 
         && available.len() == 2
     {
         RegisterSet::from_filter(
-            #[inline(always)]
+            #[inline]
             |reg| reg == model::DISALLOW_REGISTER_FOR_ADDSHIFT,
         )
     } else {
@@ -329,17 +329,12 @@ pub fn src_registers_allowed(available: RegisterSet, op: Opcode) -> RegisterSet 
 ///
 /// Some pairs of adjacent [`Opcode`]s are rejected at the opcode selector level
 /// without causing an entire instruction generation pass to fail.
-#[inline(always)]
+#[inline]
 pub fn opcode_pair_allowed(previous: Option<Opcode>, proposed: Opcode) -> Result<(), ()> {
-    match previous {
-        None => Ok(()),
-        Some(previous) => {
-            if model::disallow_opcode_pair(previous, proposed) {
-                Err(())
-            } else {
-                Ok(())
-            }
-        }
+    if previous.is_some_and(|previous| model::disallow_opcode_pair(previous, proposed)) {
+        Err(())
+    } else {
+        Ok(())
     }
 }
 
@@ -348,22 +343,14 @@ pub fn opcode_pair_allowed(previous: Option<Opcode>, proposed: Opcode) -> Result
 struct RegisterWriterMap([RegisterWriter; NUM_REGISTERS]);
 
 impl RegisterWriterMap {
-    /// Make a new empty register writer map.
-    ///
-    /// All registers are set to None.
-    #[inline(always)]
-    fn new() -> Self {
-        Default::default()
-    }
-
     /// Write or overwrite the last [`RegisterWriter`] associated with `reg`.
-    #[inline(always)]
+    #[inline]
     const fn insert(&mut self, reg: RegisterId, writer: RegisterWriter) {
         self.0[reg.as_usize()] = writer;
     }
 
     /// Return the most recent mapping for 'reg', if any.
-    #[inline(always)]
+    #[inline]
     const fn get(&self, reg: RegisterId) -> RegisterWriter {
         self.0[reg.as_usize()]
     }

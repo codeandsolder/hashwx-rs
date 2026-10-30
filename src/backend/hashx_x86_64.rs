@@ -67,7 +67,7 @@ impl Compiled {
         let instructions: &[Instruction; 512] = program.into();
         let mut target = None;
         for instruction in instructions {
-            emit_instruction(&mut assembler, instruction, &mut target);
+            emit_instruction(&mut assembler, instruction, &mut target)?;
         }
 
         for register in RegisterId::all() {
@@ -92,7 +92,8 @@ impl Compiled {
             .map_err(|_| CompileError("failed to finalize x86-64 HashX code".into()))?;
         // SAFETY: offset zero is the emitted function entry with the exact HashFn ABI,
         // and `buffer` is retained for the lifetime of `function`.
-        let function = unsafe { core::mem::transmute(buffer.ptr(AssemblyOffset(0))) };
+        let function: HashFn =
+            unsafe { core::mem::transmute::<*const u8, HashFn>(buffer.ptr(AssemblyOffset(0))) };
         Ok(Self { buffer, function })
     }
 
@@ -118,7 +119,7 @@ fn emit_instruction(
     assembler: &mut dynasmrt::x64::Assembler,
     instruction: &Instruction,
     target: &mut Option<dynasmrt::DynamicLabel>,
-) {
+) -> Result<(), CompileError> {
     match instruction {
         Instruction::Target => {
             let label = assembler.new_dynamic_label();
@@ -126,7 +127,8 @@ fn emit_instruction(
             dynasm!(assembler; .arch x64; =>label);
         }
         Instruction::Branch { mask } => {
-            let label = target.expect("HashX generator always emits Target before Branch");
+            let label = (*target)
+                .ok_or_else(|| CompileError("HashX branch emitted without a target".into()))?;
             let mask = i32::from_ne_bytes(mask.to_ne_bytes());
             dynasm!(assembler
                 ; .arch x64
@@ -173,7 +175,11 @@ fn emit_instruction(
                 1 => dynasm!(assembler; .arch x64; lea Rq(dst), [Rq(dst) + 2 * Rq(src)]),
                 2 => dynasm!(assembler; .arch x64; lea Rq(dst), [Rq(dst) + 4 * Rq(src)]),
                 3 => dynasm!(assembler; .arch x64; lea Rq(dst), [Rq(dst) + 8 * Rq(src)]),
-                _ => unreachable!("HashX AddShift immediate is 0..=3"),
+                _ => {
+                    return Err(CompileError(
+                        "HashX AddShift immediate outside 0..=3".into(),
+                    ));
+                }
             }
         }
         Instruction::AddConst { dst, src } => {
@@ -200,4 +206,5 @@ fn emit_instruction(
             dynasm!(assembler; .arch x64; ror Rq(dst), rotate);
         }
     }
+    Ok(())
 }

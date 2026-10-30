@@ -39,7 +39,7 @@ impl Compiled {
         let instructions: &[Instruction; 512] = program.into();
         let mut target = None;
         for instruction in instructions {
-            emit_instruction(&mut assembler, instruction, &mut target);
+            emit_instruction(&mut assembler, instruction, &mut target)?;
         }
 
         for register in RegisterId::all() {
@@ -54,7 +54,8 @@ impl Compiled {
             .map_err(|_| CompileError("failed to finalize AArch64 HashX code".into()))?;
         // SAFETY: offset zero is the emitted function entry with the exact HashFn ABI,
         // and `buffer` is retained for the lifetime of `function`.
-        let function = unsafe { core::mem::transmute(buffer.ptr(AssemblyOffset(0))) };
+        let function: HashFn =
+            unsafe { core::mem::transmute::<*const u8, HashFn>(buffer.ptr(AssemblyOffset(0))) };
         Ok(Self { buffer, function })
     }
 
@@ -110,7 +111,7 @@ fn emit_instruction(
     assembler: &mut dynasmrt::aarch64::Assembler,
     instruction: &Instruction,
     target: &mut Option<dynasmrt::DynamicLabel>,
-) {
+) -> Result<(), CompileError> {
     match instruction {
         Instruction::Target => {
             let label = assembler.new_dynamic_label();
@@ -118,7 +119,8 @@ fn emit_instruction(
             dynasm!(assembler; .arch aarch64; =>label);
         }
         Instruction::Branch { mask } => {
-            let label = target.expect("HashX generator always emits Target before Branch");
+            let label = (*target)
+                .ok_or_else(|| CompileError("HashX branch emitted without a target".into()))?;
             emit_u32(assembler, *mask);
             dynasm!(assembler
                 ; .arch aarch64
@@ -156,6 +158,11 @@ fn emit_instruction(
             src,
             left_shift,
         } => {
+            if *left_shift > 3 {
+                return Err(CompileError(
+                    "HashX AddShift immediate outside 0..=3".into(),
+                ));
+            }
             let dst = hw_register(*dst);
             let src = hw_register(*src);
             let shift = u32::from(*left_shift);
@@ -187,4 +194,5 @@ fn emit_instruction(
             dynasm!(assembler; .arch aarch64; ror X(dst), X(dst), #rotate);
         }
     }
+    Ok(())
 }
