@@ -83,4 +83,7 @@ impl HashWx {
 #[cfg(feature = "hashx")]
 mod hashx;
 #[cfg(feature = "hashx")]
-pub use hashx::{HashX, HashXError, HashXRuntime};
+pub use hashx::{
+    HashX, HashXError, HashXProgram, HashXRuntime, Instruction as HashXInstruction,
+    NUM_INSTRUCTIONS as HASHX_PROGRAM_SIZE, RegisterId as HashXRegisterId,
+};
