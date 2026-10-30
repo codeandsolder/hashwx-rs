@@ -33,7 +33,7 @@ pub struct HashWx {
     any(target_arch = "x86_64", target_arch = "aarch64")
 ))]
 impl HashWx {
-    /// Compile a HashWX seed into native machine code.
+    /// Compile a `HashWX` seed into native machine code.
     ///
     /// # Errors
     ///
@@ -43,7 +43,7 @@ impl HashWx {
         Self::compile_program(&generate(seed))
     }
 
-    /// Compile an already-generated HashWX program into native machine code.
+    /// Compile an already-generated `HashWX` program into native machine code.
     ///
     /// # Errors
     ///
@@ -87,7 +87,7 @@ impl HashX {
     ///
     /// # Errors
     ///
-    /// Returns [`HashXError`] when the seed cannot satisfy HashX program
+    /// Returns [`HashXError`] when the seed cannot satisfy `HashX` program
     /// constraints.
     pub fn interpret(seed: &[u8]) -> Result<Self, HashXError> {
         Self::with_runtime(seed, hashx::RuntimeOption::InterpretOnly)
@@ -97,7 +97,7 @@ impl HashX {
     ///
     /// # Errors
     ///
-    /// Returns [`HashXError`] when the seed cannot satisfy HashX program
+    /// Returns [`HashXError`] when the seed cannot satisfy `HashX` program
     /// constraints or native code generation fails.
     #[cfg(all(
         feature = "native",

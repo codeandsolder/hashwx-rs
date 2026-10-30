@@ -113,10 +113,10 @@ fn op(assembler: &mut dynasmrt::x64::Assembler, instruction: Instruction, memory
         _ => {
             match instruction.op {
                 Op::XorRor | Op::AddRor | Op::SubRor => {
-                    dynasm!(assembler;ror Rq(dst),immediate)
+                    dynasm!(assembler;ror Rq(dst),immediate);
                 }
                 Op::XorAsr | Op::AddAsr | Op::SubAsr => {
-                    dynasm!(assembler;sar Rq(dst),immediate)
+                    dynasm!(assembler;sar Rq(dst),immediate);
                 }
                 _ => dynasm!(assembler;shr Rq(dst),immediate),
             }
@@ -124,20 +124,20 @@ fn op(assembler: &mut dynasmrt::x64::Assembler, instruction: Instruction, memory
                 source(assembler, instruction.src);
                 match instruction.op {
                     Op::XorRor | Op::XorAsr | Op::XorLsr => {
-                        dynasm!(assembler;xor Rq(dst),QWORD[rsp+rax])
+                        dynasm!(assembler;xor Rq(dst),QWORD[rsp+rax]);
                     }
                     Op::AddRor | Op::AddAsr | Op::AddLsr => {
-                        dynasm!(assembler;add Rq(dst),QWORD[rsp+rax])
+                        dynasm!(assembler;add Rq(dst),QWORD[rsp+rax]);
                     }
                     _ => dynasm!(assembler;sub Rq(dst),QWORD[rsp+rax]),
                 }
             } else {
                 match instruction.op {
                     Op::XorRor | Op::XorAsr | Op::XorLsr => {
-                        dynasm!(assembler;xor Rq(dst),Rq(src))
+                        dynasm!(assembler;xor Rq(dst),Rq(src));
                     }
                     Op::AddRor | Op::AddAsr | Op::AddLsr => {
-                        dynasm!(assembler;add Rq(dst),Rq(src))
+                        dynasm!(assembler;add Rq(dst),Rq(src));
                     }
                     _ => dynasm!(assembler;sub Rq(dst),Rq(src)),
                 }

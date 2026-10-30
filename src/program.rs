@@ -156,7 +156,7 @@ impl SipRng {
         self.state[self.count]
     }
 }
-fn read_u64(seed: &[u8; 32], offset: usize) -> u64 {
+const fn read_u64(seed: &[u8; 32], offset: usize) -> u64 {
     u64::from_le_bytes([
         seed[offset],
         seed[offset + 1],
