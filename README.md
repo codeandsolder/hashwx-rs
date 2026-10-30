@@ -24,14 +24,17 @@ let module = hashwx::wasm::compile(&seed);
 
 The generated module owns a fixed 64 KiB memory and imports nothing.
 
-HashX uses the same split between native code generation and a portable reference path:
+HashX uses the same split between native code generation and a portable reference path. Accelerator backends can consume the same immutable generated program instead of reconstructing backend state:
 
 ```rust
-let native = hashwx::HashX::compile(seed)?;
+let program = hashwx::HashXProgram::generate(seed)?;
+let native = hashwx::HashX::compile_program(&program)?;
 let value = native.hash(nonce);
 let digest = native.hash_bytes(nonce);
 
-let reference = hashwx::HashX::interpret(seed)?;
+let instructions = program.instructions();
+let register_key = program.register_key();
+let reference = hashwx::HashX::interpret_program(&program);
 assert_eq!(value, reference.hash(nonce));
 ```
 

@@ -28,6 +28,7 @@ fn differential_seed(index: u64) -> [u8; 32] {
 fn hashx_is_send_sync() {
     fn assert_send_sync<T: Send + Sync>() {}
     assert_send_sync::<hashwx::HashX>();
+    assert_send_sync::<hashwx::HashXProgram>();
 }
 
 #[test]
@@ -88,7 +89,8 @@ fn local_generator_and_interpreter_match_upstream() -> Result<(), String> {
 
     for index in 0_u64..256 {
         let seed = differential_seed(index);
-        let local = hashwx::HashX::interpret(&seed);
+        let generated = hashwx::HashXProgram::generate(&seed);
+        let local = generated.as_ref().map(hashwx::HashX::interpret_program);
         let mut upstream_builder = UpstreamBuilder::new();
         upstream_builder.runtime(RuntimeOption::InterpretOnly);
         let upstream = upstream_builder.build(&seed);
@@ -99,7 +101,11 @@ fn local_generator_and_interpreter_match_upstream() -> Result<(), String> {
                     feature = "native",
                     any(target_arch = "x86_64", target_arch = "aarch64")
                 ))]
-                let native = hashwx::HashX::compile(&seed).map_err(|error| error.to_string())?;
+                let native = {
+                    let generated = generated.map_err(|error| error.to_string())?;
+                    assert_eq!(generated.instructions().len(), hashwx::HASHX_PROGRAM_SIZE);
+                    hashwx::HashX::compile_program(&generated).map_err(|error| error.to_string())?
+                };
 
                 for nonce in [0, 1, index, 123_456, 0x0123_4567_89ab_cdef, u64::MAX] {
                     let expected = upstream.hash_to_bytes(nonce);

@@ -17,6 +17,55 @@ use rand::SipRand;
 use register::RegisterFile;
 use siphash::SipState;
 
+pub use program::Program;
+pub use program::{Instruction, NUM_INSTRUCTIONS};
+#[cfg(all(
+    feature = "native",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
+pub use register::RegisterFile as NativeRegisterFile;
+pub use register::RegisterId;
+
+/// Immutable generated `HashX` program and seed-derived register key.
+///
+/// Generate this once when multiple execution backends need to consume the
+/// exact same `HashX` program, for example a native CPU JIT and an accelerator
+/// backend. The contained IR is read-only.
+#[derive(Clone, Debug)]
+pub struct HashXProgram {
+    program: Program,
+    register_key: SipState,
+}
+
+impl HashXProgram {
+    /// Generate the deterministic `HashX` program for `seed`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HashXError::ProgramConstraints`] when the generated program
+    /// fails the `HashX` whole-program constraints.
+    pub fn generate(seed: &[u8]) -> Result<Self, HashXError> {
+        let (program_key, register_key) = SipState::pair_from_seed(seed);
+        let mut rng = SipRand::new(program_key);
+        Ok(Self {
+            program: Program::generate(&mut rng)?,
+            register_key,
+        })
+    }
+
+    /// Return the 512 generated instructions in execution order.
+    #[must_use]
+    pub fn instructions(&self) -> &[Instruction; NUM_INSTRUCTIONS] {
+        self.program.instructions()
+    }
+
+    /// Return the four-word key used to initialize and finalize `HashX` state.
+    #[must_use]
+    pub fn register_key(&self) -> [u64; 4] {
+        self.register_key.into()
+    }
+}
+
 #[cfg(all(feature = "native", target_arch = "aarch64"))]
 use crate::backend::hashx_aarch64 as native_backend;
 #[cfg(all(feature = "native", target_arch = "x86_64"))]
@@ -87,23 +136,23 @@ impl HashX {
     /// Full `HashX` digest width in bytes.
     pub const FULL_SIZE: usize = 32;
 
-    fn generate(seed: &[u8]) -> Result<(program::Program, SipState), HashXError> {
-        let (program_key, register_key) = SipState::pair_from_seed(seed);
-        let mut rng = SipRand::new(program_key);
-        Ok((program::Program::generate(&mut rng)?, register_key))
-    }
-
     /// Build an interpreter-only `HashX` instance.
     ///
     /// # Errors
     ///
     /// Returns [`HashXError::ProgramConstraints`] for a rejected seed.
     pub fn interpret(seed: &[u8]) -> Result<Self, HashXError> {
-        let (program, register_key) = Self::generate(seed)?;
-        Ok(Self {
-            register_key,
-            program: RuntimeProgram::Interpret(program),
-        })
+        let program = HashXProgram::generate(seed)?;
+        Ok(Self::interpret_program(&program))
+    }
+
+    /// Build an interpreter-only instance from an already-generated program.
+    #[must_use]
+    pub fn interpret_program(program: &HashXProgram) -> Self {
+        Self {
+            register_key: program.register_key,
+            program: RuntimeProgram::Interpret(program.program.clone()),
+        }
     }
 
     /// Build a `HashX` instance using hashwx-rs's native JIT.
@@ -116,13 +165,27 @@ impl HashX {
         any(target_arch = "x86_64", target_arch = "aarch64")
     ))]
     pub fn compile(seed: &[u8]) -> Result<Self, HashXError> {
-        let (program, register_key) = Self::generate(seed)?;
+        let program = HashXProgram::generate(seed)?;
+        Self::compile_program(&program)
+    }
+
+    /// Build a native instance from an already-generated program.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HashXError::Compile`] if native code generation fails.
+    #[cfg(all(
+        feature = "native",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ))]
+    pub fn compile_program(program: &HashXProgram) -> Result<Self, HashXError> {
         #[cfg(target_arch = "x86_64")]
-        let compiled = native_backend::Compiled::compile(&program, register_key.into())?;
+        let compiled =
+            native_backend::Compiled::compile(&program.program, program.register_key.into())?;
         #[cfg(target_arch = "aarch64")]
-        let compiled = native_backend::Compiled::compile(&program)?;
+        let compiled = native_backend::Compiled::compile(&program.program)?;
         Ok(Self {
-            register_key,
+            register_key: program.register_key,
             program: RuntimeProgram::Compiled(compiled),
         })
     }
@@ -175,14 +238,3 @@ impl HashX {
         bytes
     }
 }
-
-#[cfg(all(
-    feature = "native",
-    any(target_arch = "x86_64", target_arch = "aarch64")
-))]
-pub use program::{Instruction, Program};
-#[cfg(all(
-    feature = "native",
-    any(target_arch = "x86_64", target_arch = "aarch64")
-))]
-pub use register::{RegisterFile as NativeRegisterFile, RegisterId};

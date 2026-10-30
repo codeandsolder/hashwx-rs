@@ -33,10 +33,13 @@ impl RegisterId {
         self.0 as usize
     }
 
-    /// Return the underlying u8 for this `RegisterId`.
-    ///
-    /// (Recall that hashx has 8 virtual registers,
-    /// so the output of this method is always in range 0..=7.)
+    /// Return the register index in `0..8`.
+    #[inline]
+    #[must_use]
+    pub const fn index(self) -> u8 {
+        self.0
+    }
+
     #[cfg(all(
         feature = "native",
         any(target_arch = "x86_64", target_arch = "aarch64")

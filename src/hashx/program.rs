@@ -203,6 +203,12 @@ impl fmt::Debug for Program {
 }
 
 impl Program {
+    /// Return the generated instruction stream.
+    #[inline]
+    pub(crate) fn instructions(&self) -> &InstructionArray {
+        &self.0
+    }
+
     /// Generate a new `Program` from an arbitrary [`Rng`] implementer
     ///
     /// This can return [`HashXError::ProgramConstraints`] if the `HashX`
