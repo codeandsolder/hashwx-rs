@@ -10,7 +10,9 @@
 )]
 
 use crate::CompileError;
-use crate::hashx::{Instruction, NativeRegisterFile, Program, RegisterId};
+use crate::hashx::program::Program;
+use crate::hashx::register::RegisterFile as NativeRegisterFile;
+use crate::hashx::{Instruction, RegisterId};
 use dynasmrt::{AssemblyOffset, DynasmApi, DynasmLabelApi, ExecutableBuffer, dynasm};
 
 #[cfg(windows)]
