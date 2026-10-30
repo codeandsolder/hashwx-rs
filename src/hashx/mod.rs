@@ -115,6 +115,9 @@ impl HashX {
     ))]
     pub fn compile(seed: &[u8]) -> Result<Self, HashXError> {
         let (program, register_key) = Self::generate(seed)?;
+        #[cfg(target_arch = "x86_64")]
+        let compiled = native_backend::Compiled::compile(&program, register_key.into())?;
+        #[cfg(target_arch = "aarch64")]
         let compiled = native_backend::Compiled::compile(&program)?;
         Ok(Self {
             register_key,
@@ -152,6 +155,10 @@ impl HashX {
     #[inline]
     #[must_use]
     pub fn hash(&self, input: u64) -> u64 {
+        #[cfg(all(feature = "native", target_arch = "x86_64"))]
+        if let RuntimeProgram::Compiled(program) = &self.program {
+            return program.hash_word(input);
+        }
         self.hash_to_regs(input).digest(self.register_key)[0]
     }
 

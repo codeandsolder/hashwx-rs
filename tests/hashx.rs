@@ -34,6 +34,7 @@ fn native_matches_interpreter() -> Result<(), hashwx::HashXError> {
         let interpreted = hashwx::HashX::interpret(seed)?;
         assert_eq!(native.runtime(), hashwx::HashXRuntime::Compiled);
         for nonce in [0, 1, 123_456, 987_654_321_123_456_789] {
+            assert_eq!(native.hash(nonce), interpreted.hash(nonce));
             assert_eq!(native.hash_bytes(nonce), interpreted.hash_bytes(nonce));
         }
     }
@@ -88,7 +89,17 @@ fn local_generator_and_interpreter_match_upstream() -> Result<(), String> {
                         feature = "native",
                         any(target_arch = "x86_64", target_arch = "aarch64")
                     ))]
-                    assert_eq!(native.hash_bytes(nonce), expected);
+                    {
+                        assert_eq!(
+                            native.hash(nonce),
+                            u64::from_le_bytes(
+                                expected[..8]
+                                    .try_into()
+                                    .map_err(|_| "upstream HashX digest word has wrong size")?
+                            )
+                        );
+                        assert_eq!(native.hash_bytes(nonce), expected);
+                    }
                 }
             }
             (
