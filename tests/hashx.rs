@@ -70,6 +70,23 @@ fn native_matches_interpreter() -> Result<(), hashwx::HashXError> {
 }
 
 #[test]
+fn best_available_runtime_matches_explicit_engine() -> Result<(), hashwx::HashXError> {
+    let automatic = hashwx::HashX::new(SEED1)?;
+    #[cfg(all(
+        feature = "native",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ))]
+    assert_eq!(automatic.runtime(), hashwx::HashXRuntime::Compiled);
+    #[cfg(not(all(
+        feature = "native",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    )))]
+    assert_eq!(automatic.runtime(), hashwx::HashXRuntime::Interpret);
+    assert_eq!(automatic.hash(123_456), 0xaf93_7ca6_0ad5_bdae);
+    Ok(())
+}
+
+#[test]
 fn reports_rejected_seeds() {
     assert!(hashwx::HashX::interpret(b"\xf8\x05\x00\x00").is_ok());
     assert!(matches!(

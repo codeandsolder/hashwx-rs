@@ -1,12 +1,17 @@
-//! Portable WebAssembly emitter for `HashWX`.
+//! Portable WebAssembly emitters for `HashWX` and, with the `hashx` feature, `HashX`.
 //!
-//! Generated modules import nothing, own a fixed one-page memory, and export a
-//! single `hash(i64) -> i64` function.
+//! Generated modules import nothing and export a single `hash(i64) -> i64` function.
+//! `HashWX` modules own one fixed memory page; `HashX` modules need no linear memory.
 
 use crate::{
     ProgramSet, SEED_SIZE, generate,
     program::{Instruction as HIns, Op, Program},
 };
+#[cfg(feature = "hashx")]
+mod hashx;
+#[cfg(feature = "hashx")]
+pub use hashx::{compile as compile_hashx, compile_program as compile_hashx_program};
+
 use wasm_encoder::{
     BlockType, CodeSection, ExportKind, ExportSection, Function, FunctionSection, Instruction,
     MemArg, MemorySection, MemoryType, Module, TypeSection, ValType,

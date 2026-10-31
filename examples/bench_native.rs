@@ -1,14 +1,26 @@
 //! Small native throughput/JIT construction benchmark.
 
-#[cfg(feature = "native")]
+#[cfg(all(
+    feature = "native",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 use std::time::Instant;
 
-#[cfg(feature = "native")]
+#[cfg(all(
+    feature = "native",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 const WARMUP_HASHES: u32 = 30_000;
-#[cfg(feature = "native")]
+#[cfg(all(
+    feature = "native",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 const BENCH_HASHES: u32 = 300_000;
 
-#[cfg(feature = "native")]
+#[cfg(all(
+    feature = "native",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mode = std::env::args()
         .nth(1)
@@ -20,7 +32,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-#[cfg(feature = "native")]
+#[cfg(all(
+    feature = "native",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 fn bench_hashwx() -> Result<(), Box<dyn std::error::Error>> {
     let mut seed = [0u8; 32];
     for (value, byte) in (0u8..32).zip(&mut seed) {
@@ -41,7 +56,7 @@ fn bench_hashwx() -> Result<(), Box<dyn std::error::Error>> {
         }
         let sec = t.elapsed().as_secs_f64();
         let build_us = build.as_secs_f64() * 1e6;
-        let code_len = h.code_len();
+        let code_len = h.code_len().unwrap_or(0);
         let rate = f64::from(BENCH_HASHES) / sec;
         println!(
             "mode=hashwx build_us={build_us:.3} code={code_len} check={check:016x} rate={rate:.3} sink={sink:016x}"
@@ -50,7 +65,11 @@ fn bench_hashwx() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(all(feature = "native", feature = "hashx"))]
+#[cfg(all(
+    feature = "native",
+    feature = "hashx",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 fn bench_hashx() -> Result<(), Box<dyn std::error::Error>> {
     let seed = b"This is a test\0";
     for _ in 0..4 {
@@ -76,10 +95,17 @@ fn bench_hashx() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(all(feature = "native", not(feature = "hashx")))]
+#[cfg(all(
+    feature = "native",
+    not(feature = "hashx"),
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 fn bench_hashx() -> Result<(), Box<dyn std::error::Error>> {
     Err("hashx benchmark mode requires the hashx feature".into())
 }
 
-#[cfg(not(feature = "native"))]
+#[cfg(not(all(
+    feature = "native",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+)))]
 fn main() {}

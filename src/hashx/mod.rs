@@ -13,11 +13,11 @@ mod scheduler;
 mod siphash;
 
 use crate::CompileError;
-use program::Program;
 use rand::SipRand;
 use register::RegisterFile;
 use siphash::SipState;
 
+use program::Program;
 pub use program::{Instruction, NUM_INSTRUCTIONS};
 pub use register::RegisterId;
 
@@ -130,6 +130,32 @@ pub struct HashX {
 impl HashX {
     /// Full `HashX` digest width in bytes.
     pub const FULL_SIZE: usize = 32;
+
+    /// Build the best execution engine available for this target.
+    ///
+    /// Native-capable x86-64/AArch64 builds use the JIT; other targets use the
+    /// portable interpreter. A native compilation failure is returned rather
+    /// than silently falling back.
+    ///
+    /// # Errors
+    ///
+    /// Returns a seed-generation or native-compilation error.
+    pub fn new(seed: &[u8]) -> Result<Self, HashXError> {
+        #[cfg(all(
+            feature = "native",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
+        {
+            Self::compile(seed)
+        }
+        #[cfg(not(all(
+            feature = "native",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        )))]
+        {
+            Self::interpret(seed)
+        }
+    }
 
     /// Build an interpreter-only `HashX` instance.
     ///

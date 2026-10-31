@@ -3,7 +3,8 @@
 ## 0.1.0 - unreleased
 
 - Implement HashWX 1.0 program generation with x86-64/AArch64 native JIT backends.
-- Add a portable HashWX WebAssembly emitter.
+- Add architecture-neutral Rust execution for HashWX and target-selected `HashWx::new` / `HashX::new` fallbacks.
+- Add portable WebAssembly emitters for both HashWX and HashX.
 - Implement HashX v1 in-tree, including generation, interpreter, constraints/scheduling, and repo-owned x86-64/AArch64 JIT backends.
 - Differentially test HashX generation and execution against upstream `hashx` 0.10 as a dev-only oracle.
 - Expose generated HashWX IR through read-only accessors so native JIT invariants cannot be violated through the safe public API.
