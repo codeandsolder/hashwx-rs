@@ -118,7 +118,7 @@ fn canonical_hashwx_seed(salt: u64) -> [u8; 32] {
     seed
 }
 
-fn sip_round(v: &mut [u64; 4]) {
+const fn sip_round(v: &mut [u64; 4]) {
     v[0] = v[0].wrapping_add(v[1]);
     v[2] = v[2].wrapping_add(v[3]);
     v[1] = v[1].rotate_left(13);
