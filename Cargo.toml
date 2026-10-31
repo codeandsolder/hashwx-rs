@@ -11,7 +11,7 @@ documentation="https://docs.rs/hashwx"
 keywords=["hashwx","hashx","proof-of-work","jit","wasm"]
 categories=["algorithms","cryptography","wasm"]
 publish=["crates-io"]
-exclude=[".github/"]
+exclude=[".github/",".node-version"]
 
 [package.metadata.docs.rs]
 all-features=true
