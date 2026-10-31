@@ -57,7 +57,7 @@ On the development x86-64 systems, the HashWX native backend generates roughly 9
 
 `cargo run --release --example bench_native -- hashwx` benchmarks HashWX; the same command with `hashx` benchmarks the repo-owned HashX JIT. On the Ryzen 9 4900HS development machine the current x86-64 HashX path is roughly 14.6 MH/s, with about 70–90 µs warm JIT compilation. These numbers are development measurements, not API guarantees.
 
-Release CI additionally runs like-for-like single-thread throughput comparisons against pinned revisions of tevador's canonical C HashWX and HashX implementations on hosted Linux x86-64 and Apple Silicon. Each side runs the canonical benchmark workload, five measured rounds are alternated after warmup, and the median hashwx-rs throughput must be at least 95% of canonical for both algorithms.
+Release CI additionally runs like-for-like single-thread throughput comparisons against pinned revisions of tevador's canonical C HashWX and HashX implementations on hosted Linux x86-64 and Apple Silicon. Each side runs the complete canonical benchmark workload in three measured sweeps after warmup. Each sweep is split into five adjacent seed ranges with canonical/hashwx-rs execution interleaved chunk-by-chunk and order reversed across chunks and sweeps; the median paired-sweep ratio must be at least 95% of canonical for both algorithms.
 
 ## Portability
 
