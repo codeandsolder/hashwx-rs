@@ -49,7 +49,7 @@ HashX keeps the exact v1 seed/program semantics, including the small set of seed
 
 ## Correctness
 
-The test suite includes the official HashWX 1.0 and HashX v1 vectors. The repo-owned HashX generator/interpreter is differentially checked against upstream `hashx` as a dev-only oracle, and the native HashX JIT is checked against our interpreter on the executing host. Generated HashWX and HashX WebAssembly are instantiated and executed against their official vectors and deterministic differential corpora. The portable HashWX engine is also checked against generated Wasm and native execution. The x86-64 native HashWX path is exercised directly in hosted CI; the AArch64 HashWX and HashX JITs are cross-built as static musl tests and executed under `qemu-aarch64` in the release gate. ARMv7 hard-float Linux executes the complete all-feature portable/runtime suite under `qemu-arm`.
+The test suite includes the official HashWX 1.0 and HashX v1 vectors. The repo-owned HashX generator/interpreter is differentially checked against upstream `hashx` as a dev-only oracle, and the native HashX JIT is checked against our interpreter on the executing host. Generated HashWX and HashX WebAssembly are instantiated and executed against their official vectors and deterministic differential corpora. The portable HashWX engine is also checked against generated Wasm and native execution. The x86-64 native HashWX path is exercised directly in hosted CI; the AArch64 HashWX and HashX JITs are cross-built as static musl tests and executed under `qemu-aarch64`, and the native Apple Silicon path executes on a GitHub-hosted arm64 macOS runner. ARMv7 hard-float Linux executes the complete all-feature portable/runtime suite under `qemu-arm`.
 
 ## Performance
 
@@ -57,9 +57,11 @@ On the development x86-64 systems, the HashWX native backend generates roughly 9
 
 `cargo run --release --example bench_native -- hashwx` benchmarks HashWX; the same command with `hashx` benchmarks the repo-owned HashX JIT. On the Ryzen 9 4900HS development machine the current x86-64 HashX path is roughly 14.6 MH/s, with about 70–90 µs warm JIT compilation. These numbers are development measurements, not API guarantees.
 
+Release CI additionally runs like-for-like single-thread throughput comparisons against pinned revisions of tevador's canonical C HashWX and HashX implementations on hosted Linux x86-64 and Apple Silicon. Each side runs the canonical benchmark workload, five measured rounds are alternated after warmup, and the median hashwx-rs throughput must be at least 95% of canonical for both algorithms.
+
 ## Portability
 
-The HashWX program generator and `ProgramSet` are architecture-neutral. The HashWX native backend supports x86-64 and AArch64. The release gate cross-compiles AArch64 and executes the native HashWX/HashX test binaries under `qemu-aarch64`. ARMv7 (`armv7-unknown-linux-musleabihf`) is a tested portable target: the all-feature test suite executes under `qemu-arm`, including portable HashWX, the HashX interpreter, and both Wasm emitters. The `wasm` backend is available independently with `--no-default-features --features wasm`.
+The HashWX program generator and `ProgramSet` are architecture-neutral. The HashWX native backend supports x86-64 and AArch64, including Apple Silicon. The release gate cross-compiles AArch64 Linux and executes the native HashWX/HashX test binaries under `qemu-aarch64`, while GitHub-hosted arm64 macOS executes the native Apple path directly. ARMv7 (`armv7-unknown-linux-musleabihf`) is a tested portable target: the all-feature test suite executes under `qemu-arm`, including portable HashWX, the HashX interpreter, and both Wasm emitters. The `wasm` backend is available independently with `--no-default-features --features wasm`.
 
 HashWX and HashX have portable Rust execution on every supported Rust target. With `native`, `HashWx::new` and `HashX::new` select hashwx-rs JIT backends on x86-64/AArch64 and otherwise select the portable engine; explicit `compile` remains native-only. ARMv7 therefore has complete functional support without an ARM32 JIT. The `wasm` feature can emit HashWX on its own and HashX when combined with `hashx`.
 

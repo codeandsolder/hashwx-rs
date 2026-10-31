@@ -36,6 +36,10 @@ wasm-encoder={version="0.262",optional=true}
 hashx={version="0.10",default-features=false}
 wasmi={version="2.0",default-features=false,features=["std","validate","portable-dispatch"]}
 
+[[example]]
+name="bench_canonical"
+required-features=["native","hashx"]
+
 [lints.rust]
 unsafe_op_in_unsafe_fn="deny"
 missing_docs="warn"
