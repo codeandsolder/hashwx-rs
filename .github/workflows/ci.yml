@@ -51,7 +51,6 @@ jobs:
         CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="$sysroot/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld"
         CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-C linker-flavor=ld.lld"
         cargo test --locked --release --target aarch64-unknown-linux-musl --all-features
-        --test vectors --test hashx
 
   armv7:
     uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@f360aee0f8e6f5c191901b61d94296471f320c3b # main
@@ -68,8 +67,7 @@ jobs:
         env CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_RUNNER=qemu-arm
         CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_LINKER="$sysroot/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld"
         CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_RUSTFLAGS="-C linker-flavor=ld.lld"
-        cargo test --locked --release --target armv7-unknown-linux-musleabihf
-        --no-default-features --features hashx,wasm
+        cargo test --locked --release --target armv7-unknown-linux-musleabihf --all-features
 
   windows-x86-cross:
     uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@f360aee0f8e6f5c191901b61d94296471f320c3b # main
