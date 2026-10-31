@@ -65,6 +65,12 @@ fn add_const(f: &mut Function, dst: u32, value: u64) {
     e(f, Instruction::LocalSet(dst));
 }
 
+// WebAssembly wide arithmetic has `i64.mul_wide_u` / `i64.mul_wide_s`, which
+// removes most of this HashX Wasm performance gap (about 0.54x -> 0.91x native
+// in the 2026-10-31 audit). Keep this baseline lowering for engine portability
+// until Node/V8 accepts the proposal by default. The CI tripwire in
+// `.github/scripts/node-wide-arithmetic-tripwire.mjs` intentionally fails when
+// that happens so this lowering is revisited rather than silently becoming stale.
 fn unsigned_mul_high(f: &mut Function, dst: u32, src: u32) {
     copy_local(f, A, dst);
     copy_local(f, B, src);
