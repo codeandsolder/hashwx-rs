@@ -6,6 +6,23 @@ on:
   workflow_dispatch:
 
 jobs:
+  wasm-wide-arithmetic-tripwire:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Renovate-managed Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      - name: Detect WebAssembly wide-arithmetic support
+        run: node .github/scripts/node-wide-arithmetic-tripwire.mjs
+
   verify:
     uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@f360aee0f8e6f5c191901b61d94296471f320c3b # main
     with:
