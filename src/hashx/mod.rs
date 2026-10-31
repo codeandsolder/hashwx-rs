@@ -6,24 +6,19 @@
 
 mod constraints;
 mod generator;
-mod program;
+pub(crate) mod program;
 mod rand;
-mod register;
+pub(crate) mod register;
 mod scheduler;
 mod siphash;
 
 use crate::CompileError;
+use program::Program;
 use rand::SipRand;
 use register::RegisterFile;
 use siphash::SipState;
 
-pub use program::Program;
 pub use program::{Instruction, NUM_INSTRUCTIONS};
-#[cfg(all(
-    feature = "native",
-    any(target_arch = "x86_64", target_arch = "aarch64")
-))]
-pub use register::RegisterFile as NativeRegisterFile;
 pub use register::RegisterId;
 
 /// Immutable generated `HashX` program and seed-derived register key.
