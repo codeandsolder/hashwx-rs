@@ -47,7 +47,7 @@ fn bench_hashwx(start: u32, seeds: u32, nonces: u32) -> Result<(), Box<dyn std::
     let started = Instant::now();
     for salt in start..start.saturating_add(seeds) {
         let seed = canonical_hashwx_seed(u64::from(salt));
-        let hash = hashwx::HashWx::compile(&seed)?;
+        let hash = hashwx::HashWx::new(&seed)?;
         for nonce in 0..u64::from(nonces) {
             sink ^= black_box(hash.hash(nonce));
         }
@@ -70,7 +70,7 @@ fn bench_hashx(start: u32, seeds: u32, nonces: u32) -> Result<(), Box<dyn std::e
     let started = Instant::now();
     for seed_index in start..start.saturating_add(seeds) {
         let seed = seed_index.to_ne_bytes();
-        let hash = match hashwx::HashX::compile(&seed) {
+        let hash = match hashwx::HashX::new(&seed) {
             Ok(hash) => hash,
             Err(hashwx::HashXError::ProgramConstraints) => continue,
             Err(error) => return Err(Box::new(error)),
