@@ -6,9 +6,9 @@
 
 mod constraints;
 mod generator;
-pub(crate) mod program;
+pub mod program;
 mod rand;
-pub(crate) mod register;
+pub mod register;
 mod scheduler;
 mod siphash;
 

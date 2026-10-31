@@ -81,7 +81,7 @@ impl HashWx {
 }
 
 #[cfg(feature = "hashx")]
-mod hashx;
+pub(crate) mod hashx;
 #[cfg(feature = "hashx")]
 pub use hashx::{
     HashX, HashXError, HashXProgram, HashXRuntime, Instruction as HashXInstruction,
