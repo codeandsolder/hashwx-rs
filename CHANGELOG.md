@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 - unreleased
+## 0.1.0 - 2026-11-02
 
 - Implement HashWX 1.0 program generation with x86-64/AArch64 native JIT backends.
 - Add architecture-neutral Rust execution for HashWX and target-selected `HashWx::new` / `HashX::new` fallbacks.
