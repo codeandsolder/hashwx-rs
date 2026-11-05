@@ -7,15 +7,15 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
   strict-rust:
-    uses: codeandsolder/rust-skills2/.github/workflows/strict-rust.yml@5249663849d08cd98e57168855465bb6ba7e40df # main
+    uses: codeandsolder/rust-skills2/.github/workflows/strict-rust.yml@e6202bf4dc1e13be77b73210f88c646e5348be49 # main
     with:
       cargo-args: --locked --workspace --all-targets --all-features
       allow-test-panics: true
