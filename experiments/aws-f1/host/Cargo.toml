@@ -1,0 +1,15 @@
+[package]
+name = "hashwx-f1-fixtures"
+version = "0.1.0"
+edition = "2024"
+publish = false
+[dependencies]
+hashwx = { path = "../../..", default-features = false }
+
+[features]
+aws-f1-sdk = []
+
+[[bin]]
+name = "hashwx-f1-solve"
+path = "src/bin/solve.rs"
+required-features = ["aws-f1-sdk"]
