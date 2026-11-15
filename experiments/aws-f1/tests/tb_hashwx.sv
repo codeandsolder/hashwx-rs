@@ -91,7 +91,7 @@ module tb_hashwx;
         check_scan(0,0,0,0,0);
         // Exclusive comparison and early success (nonce zero has hash golden[0]).
         check_scan(1,golden[0],0,0,1);
-        check_scan(3,golden[0]+64'd1,1,0,1);
+        check_scan(3,golden[0]+64'd1,1,0,3);
         // Different unrelated program seeds, including many byte values > 127.
         for (int seed_idx=1; seed_idx<16; seed_idx++) begin
             $readmemh($sformatf("tests/fixtures/config_%02d.hex",seed_idx),cfg);

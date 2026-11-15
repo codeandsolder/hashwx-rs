@@ -1,85 +1,25 @@
-// Single-lane HashWX bounded nonce scanner with first-hit early exit.
+// Public HashWX scan interface, backed by the parameterized wave scheduler.
 // SPDX-License-Identifier: LGPL-3.0-only
-module hashwx_scan (
-    input  logic clk, rst,
-    input  logic cfg_we,
-    input  logic [7:0] cfg_addr,
-    input  logic [31:0] cfg_data,
-    input  logic start,
-    input  logic [63:0] first_nonce, target,
-    input  logic [31:0] nonce_count,
+module hashwx_scan #(
+    parameter integer LANES = 4
+)(
+    input logic clk, rst,
+    input logic cfg_we,
+    input logic [7:0] cfg_addr,
+    input logic [31:0] cfg_data,
+    input logic start,
+    input logic [63:0] first_nonce, target,
+    input logic [31:0] nonce_count,
     output logic busy, done, found,
     output logic [31:0] attempts,
     output logic [63:0] winner_nonce, winner_hash
 );
-    typedef enum logic [1:0] {IDLE, LAUNCH, WAIT_BUSY, WAIT_RESULT} state_t;
-    state_t state;
-    logic core_start, core_busy, core_done, core_hit;
-    logic [63:0] current_nonce, core_hash;
-    logic [31:0] remaining;
-    logic [63:0] active_target;
-    hashwx_core core (
+    hash_parallel_scan #(.LANES(LANES), .IS_HASHX(1'b0), .HASH_BITS(64)) scheduler (
         .clk(clk), .rst(rst),
-        .cfg_we(cfg_we && !busy),
-        .cfg_addr(cfg_addr), .cfg_data(cfg_data),
-        .start(core_start), .nonce(current_nonce), .target(active_target),
-        .busy(core_busy), .done(core_done), .hit(core_hit), .hash(core_hash)
+        .cfg_we(cfg_we), .cfg_addr({3'b0,cfg_addr}), .cfg_data(cfg_data),
+        .start(start), .first_nonce(first_nonce), .target(target),
+        .nonce_count(nonce_count),
+        .busy(busy), .done(done), .found(found), .attempts(attempts),
+        .winner_nonce(winner_nonce), .winner_hash(winner_hash)
     );
-    assign busy = state != IDLE;
-    always_ff @(posedge clk) begin
-        if (rst) begin
-            state <= IDLE;
-            core_start <= 0;
-            current_nonce <= 0;
-            active_target <= 0;
-            remaining <= 0;
-            done <= 0;
-            found <= 0;
-            attempts <= 0;
-            winner_nonce <= 0;
-            winner_hash <= 0;
-        end else case (state)
-            IDLE: begin
-                core_start <= 0;
-                if (start && !cfg_we) begin
-                    current_nonce <= first_nonce;
-                    active_target <= target;
-                    remaining <= nonce_count;
-                    attempts <= 0;
-                    done <= 0;
-                    found <= 0;
-                    winner_nonce <= 0;
-                    winner_hash <= 0;
-                    if (nonce_count == 0) done <= 1;
-                    else state <= LAUNCH;
-                end
-            end
-            LAUNCH: begin
-                core_start <= 1;
-                state <= WAIT_BUSY;
-            end
-            WAIT_BUSY: begin
-                core_start <= 0;
-                if (core_busy) state <= WAIT_RESULT;
-            end
-            WAIT_RESULT: if (core_done) begin
-                attempts <= attempts + 1'b1;
-                if (core_hit) begin
-                    found <= 1;
-                    winner_nonce <= current_nonce;
-                    winner_hash <= core_hash;
-                    done <= 1;
-                    state <= IDLE;
-                end else if (remaining == 1) begin
-                    done <= 1;
-                    state <= IDLE;
-                end else begin
-                    remaining <= remaining - 1'b1;
-                    current_nonce <= current_nonce + 1'b1;
-                    state <= LAUNCH;
-                end
-            end
-            default: state <= IDLE;
-        endcase
-    end
 endmodule

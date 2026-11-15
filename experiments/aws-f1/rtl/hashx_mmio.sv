@@ -1,6 +1,6 @@
 // Independent F1 AppPF BAR0 MMIO bank for HashX v1.
 // SPDX-License-Identifier: LGPL-3.0-only
-module hashx_mmio(
+module hashx_mmio #(parameter integer LANES = 4)(
     input logic clk, rst, wr_en,
     input logic [31:0] wr_addr, wr_data, rd_addr,
     output logic [31:0] rd_value
@@ -14,7 +14,7 @@ module hashx_mmio(
     // Config 0x4000-0x501c inclusive, 1032x32-bit words.
     wire cfg_we = wr_en && wr_addr >= 32'h4000
         && wr_addr < 32'h5020 && wr_addr[1:0] == 0;
-    hashx_scan scanner(
+    hashx_scan #(.LANES(LANES)) scanner(
         .clk(clk), .rst(rst),
         .cfg_we(cfg_we), .cfg_addr(wr_addr[12:2]), .cfg_data(wr_data),
         .start(scan_start), .first_nonce(first_nonce), .target(target),
@@ -62,6 +62,7 @@ module hashx_mmio(
             32'h1040: rd_value = winner_digest[191:160];
             32'h1044: rd_value = winner_digest[223:192];
             32'h1048: rd_value = winner_digest[255:224];
+            32'h104c: rd_value = 32'(LANES); // physical lanes
             default: ;
         endcase
     end

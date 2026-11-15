@@ -22,6 +22,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             words.map(|w| format!("{w:08x}\n")).concat(),
         )?;
         let reference = HashWx::interpret_program(&set);
+        if seed_index == 0 {
+            let sequential: String = (0..64_u64)
+                .map(|nonce| format!("{:016x}\n", reference.hash(nonce)))
+                .collect();
+            fs::write(dir.join("hashwx_scan_golden.hex"), sequential)?;
+            let wrap: String = [u64::MAX - 1, u64::MAX, 0, 1]
+                .into_iter()
+                .map(|nonce| format!("{:016x}\n", reference.hash(nonce)))
+                .collect();
+            fs::write(dir.join("hashwx_wrap_golden.hex"), wrap)?;
+        }
         let mut golden = String::new();
         for nonce in [0_u64, 1, 0x0123_4567_89ab_cdef] {
             golden.push_str(&format!("{:016x}\n", reference.hash(nonce)));

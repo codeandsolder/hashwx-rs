@@ -45,7 +45,7 @@ module tb_hashwx_mmio;
             $fatal(1,"MMIO scan timeout");
         end
         peek(32'h61C,32'd6); // done + found, no busy
-        peek(32'h620,32'd1);
+        peek(32'h620,32'd3);
         peek(32'h624,0);
         peek(32'h628,0);
         peek(32'h62C,golden[0][31:0]);

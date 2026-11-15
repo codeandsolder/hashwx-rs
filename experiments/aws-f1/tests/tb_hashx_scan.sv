@@ -67,7 +67,7 @@ module tb_hashx_scan;
         check_scan(0,0,0,0,0);
         check_scan(1,golden[0][63:0],0,0,1);
         check_scan(2,golden[0][63:0],1,1,2);
-        check_scan(3,golden[0][63:0]+1'b1,1,0,1);
+        check_scan(3,golden[0][63:0]+1'b1,1,0,3);
         $display("PASS HashX scan boundaries, empty, no-hit, second-hit and first-hit");
         $finish;
     end

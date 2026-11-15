@@ -37,6 +37,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             encoded.map(|word| format!("{word:08x}\n")).concat(),
         )?;
         let reference = HashX::interpret_program(&program);
+        if successful_seeds == 0 {
+            let encode_digest = |nonce: u64| -> String {
+                let digest = reference.hash_bytes(nonce);
+                let mut text = String::with_capacity(65);
+                for byte in digest.iter().rev() {
+                    text.push_str(&format!("{byte:02x}"));
+                }
+                text.push('\n');
+                text
+            };
+            let sequential: String = (0..64_u64).map(&encode_digest).collect();
+            fs::write(dir.join("hashx_scan_golden.hex"), sequential)?;
+            let wrap: String = [u64::MAX - 1, u64::MAX, 0, 1]
+                .into_iter()
+                .map(encode_digest)
+                .collect();
+            fs::write(dir.join("hashx_wrap_golden.hex"), wrap)?;
+        }
         let mut golden = String::new();
         for nonce in [0u64, 1, 0x0123_4567_89ab_cdef] {
             let digest = reference.hash_bytes(nonce);

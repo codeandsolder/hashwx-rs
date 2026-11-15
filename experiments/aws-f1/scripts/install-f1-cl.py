@@ -22,6 +22,7 @@ def main():
     rtl_modules = (
         "hashwx_core.sv", "hashwx_scan.sv", "hashwx_mmio.sv",
         "hashx_core.sv", "hashx_scan.sv", "hashx_mmio.sv",
+        "hash_parallel_scan.sv",
         "hash_f1_dual.sv",
     )
     for filename in rtl_modules:

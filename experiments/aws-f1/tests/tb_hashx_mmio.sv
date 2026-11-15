@@ -39,7 +39,7 @@ module tb_hashx_mmio;
             $fatal(1,"HashX MMIO scan timeout");
         end
         peek(32'h101c,32'h6);
-        peek(32'h1020,32'h1);
+        peek(32'h1020,32'h3);
         peek(32'h1024,0);
         peek(32'h1028,0);
         for(int i=0;i<8;i++) peek(32'h102c+i*4,gold[0][i*32 +: 32]);

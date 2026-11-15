@@ -1,6 +1,6 @@
 // OCL 32-bit MMIO endpoint. AXI-Lite handshake is owned by AWS's F1 shell CL.
 // SPDX-License-Identifier: LGPL-3.0-only
-module hashwx_mmio (
+module hashwx_mmio #(parameter integer LANES = 4) (
     input  logic clk, rst, wr_en,
     input  logic [31:0] wr_addr, wr_data, rd_addr,
     output logic [31:0] rd_value
@@ -12,7 +12,7 @@ module hashwx_mmio (
     logic [63:0] winner_nonce, winner_hash;
     wire cfg_we = wr_en && wr_addr >= 32'h800
         && wr_addr < 32'hA10 && (wr_addr[1:0] == 0);
-    hashwx_scan scanner(
+    hashwx_scan #(.LANES(LANES)) scanner(
         .clk(clk), .rst(rst),
         .cfg_we(cfg_we), .cfg_addr(wr_addr[9:2]), .cfg_data(wr_data),
         .start(scan_start), .first_nonce(first_nonce), .target(target),
@@ -54,6 +54,7 @@ module hashwx_mmio (
             32'h628: rd_value = winner_nonce[63:32];
             32'h62C: rd_value = winner_hash[31:0];
             32'h630: rd_value = winner_hash[63:32];
+            32'h634: rd_value = 32'(LANES); // physical lanes
             default: ;
         endcase
     end

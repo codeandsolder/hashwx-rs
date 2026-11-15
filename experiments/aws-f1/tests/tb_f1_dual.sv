@@ -33,6 +33,8 @@ module tb_f1_dual;
         rst=0;
         peek(32'h600,32'h48585731);
         peek(32'h1000,32'h48585831);
+        peek(32'h634,4);
+        peek(32'h104c,4);
         for (int i=0;i<132;i++) poke(32'h800+i*4,wx_cfg[i]);
         for (int i=0;i<1032;i++) poke(32'h4000+i*4,hx_cfg[i]);
         // Same requested nonce and a guaranteed early win for both.
