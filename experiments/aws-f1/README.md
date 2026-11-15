@@ -31,6 +31,7 @@ The script uses Rust 1.99 via rustup, managed sccache, Icarus Verilog, Verilator
 - Both MMIO banks: program upload, four-entry job enqueue, completion retention until explicit pop, tags, attempts, winner hash, invalid program-write rejection, and readable FIFO status.
 - Non-power-of-two depth-3 FIFO simulation checks ordering, command backpressure and completion backpressure without executing the cryptographic cores.
 - Full dual-engine MMIO simulation: six concurrently queued jobs (three per algorithm) with independent results and complete CPU-oracle digests. Includes no-hit, early-hit and zero-count jobs.
+- Rust host queue transport is abstracted behind a small MMIO bus trait, with mock-device unit tests independent of the AWS SDK. Coverage includes arbitrary u64-length counts, nonce overflow, multi-batch submission, draining in-flight work after a hit, tag mismatch detection, preexisting protocol errors, and zero-work requests.
 
 With one shared HashWX 64x64 multiplier and a single scratchpad BRAM read port, simulation costs on tested programs are **15,628 clocks per HashWX candidate** (previously 13,836) and **3,791–3,910 clocks per HashX candidate**. These are **not real FPGA throughput numbers**.
 

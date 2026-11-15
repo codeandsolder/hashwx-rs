@@ -1,7 +1,8 @@
 //! HashWX F1 proof-of-work search and candidate CPU verification.
 use hashwx::{HashWx, generate};
-use hashwx_f1_fixtures::aws::{Fpga, HASHWX_QUEUE, parse_number, parse_seed, scan_batches};
+use hashwx_f1_fixtures::aws::{Fpga, parse_number, parse_seed};
 use hashwx_f1_fixtures::encoding::encode_hashwx;
+use hashwx_f1_fixtures::queue::{HASHWX_QUEUE, scan_batches};
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {

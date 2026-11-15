@@ -1,7 +1,8 @@
 //! HashX v1 F1 proof-of-work search and full 256-bit CPU verification.
 use hashwx::{HashX, HashXProgram};
-use hashwx_f1_fixtures::aws::{Fpga, HASHX_QUEUE, parse_hex_bytes, parse_number, scan_batches};
+use hashwx_f1_fixtures::aws::{Fpga, parse_hex_bytes, parse_number};
 use hashwx_f1_fixtures::encoding::encode_hashx;
+use hashwx_f1_fixtures::queue::{HASHX_QUEUE, scan_batches};
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
