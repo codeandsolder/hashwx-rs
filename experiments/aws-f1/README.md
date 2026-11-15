@@ -30,7 +30,7 @@ The script uses Rust 1.99 via rustup, managed sccache, Icarus Verilog, Verilator
 - Both MMIO banks: program load, start, status, attempts, winner hash.
 - Dual-engine BAR0 model: HashX and HashWX run concurrently with independent, correct outputs.
 
-With one shared HashWX 64x64 multiplier and a single scratchpad BRAM read port, simulation costs on tested programs are **15,628 clocks per HashWX candidate** (previously 13,836) and **3,790–3,909 clocks per HashX candidate**. These are **not real FPGA throughput numbers**.
+With one shared HashWX 64x64 multiplier and a single scratchpad BRAM read port, simulation costs on tested programs are **15,628 clocks per HashWX candidate** (previously 13,836) and **3,791–3,910 clocks per HashX candidate**. These are **not real FPGA throughput numbers**.
 
 ## Synthesized resource footprint (Yosys, UltraScale+)
 
@@ -43,13 +43,16 @@ timing closure.
 |---|---:|---:|---:|
 | HashWX, original baseline (two multipliers/two scratch read ports) | 20 | 9 | 4,504 |
 | HashWX, shared multiplier + single scratch port | 10 | 5 | 4,287 |
-| HashX, time-multiplexed 16x16 multiplier | 1 | 1 | 5,006 |
+| HashX, time-multiplexed 16x16 multiplier and shared SipRound | 1 | 1 | 4,820 |
 | Combined scalar (one lane each) BAR0 wrapper + scanner/control | 11 | 6 | 10,230 |
-| Combined **4 HashWX + 4 HashX** lanes with MMIO and wave scheduler | **44** | **24** | **38,703** |
+| Combined **4 HashWX + 4 HashX** lanes with MMIO and wave scheduler | **44** | **24** | **37,387** |
 
 Resource counts are from Yosys 0.66, synth_xilinx -family xcup, with IO pads
 and auto clock buffers disabled. The memory optimization costs one additional
-cycle per affected read. F1 XCVU9P-specific Vivado timing and proper
+cycle per affected read. HashX additionally reuses its init SipRound for both
+final digest rounds by inserting one extra finalization cycle and keeping
+the intermediate digest in the existing state register. This reduces HashX
+from 5,006 to 4,820 estimated logic cells without changing the 256-bit hash. F1 XCVU9P-specific Vivado timing and proper
 DSP/BRAM placement are still required before predicting any hashes/second.
 
 ## Parallel scheduling and simulated throughput
@@ -70,13 +73,13 @@ counts (includes wave scheduling; no known FPGA clock frequency):
 
 | Lanes per algorithm | HashWX cycles | HashX cycles |
 |---|---:|---:|
-| 1 | 250,080 | 62,338 |
-| 2 | 125,040 | 31,288 |
-| 3 | 93,780 | 23,466 |
-| 4 | 62,520 | 15,644 |
-| 5 | 62,520 | 15,644 |
-| 7 | 46,890 | 11,733 |
-| 8 | 31,260 | 7,822 |
+| 1 | 250,080 | 62,354 |
+| 2 | 125,040 | 31,296 |
+| 3 | 93,780 | 23,472 |
+| 4 | 62,520 | 15,648 |
+| 5 | 62,520 | 15,648 |
+| 7 | 46,890 | 11,736 |
+| 8 | 31,260 | 7,824 |
 
 This confirms the scheduler's near-linear **simulated-cycle** scaling;
 without placement/timing, do not interpret it as an actual FPGA hash-rate or

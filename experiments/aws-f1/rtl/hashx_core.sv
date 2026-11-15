@@ -27,7 +27,7 @@ module hashx_core(
     logic [3:0] mul_i, mul_op;
     logic [2:0] mul_dst;
 
-    typedef enum logic [2:0] {IDLE, INIT, EXEC, MUL, MUL_DONE, FINISH} state_t;
+    typedef enum logic [2:0] {IDLE, INIT, EXEC, MUL, MUL_DONE, FINISH_A, FINISH_B} state_t;
     state_t state;
     assign busy = state != IDLE;
 
@@ -73,13 +73,16 @@ module hashx_core(
                    - (mul_a[63] ? mul_b : 64'd0)
                    - (mul_b[63] ? mul_a : 64'd0);
 
-    wire [255:0] x_mix = sipround({
-        regs[3],regs[2],regs[1]+key[1],regs[0]+key[0]
-    });
-    wire [255:0] y_mix = sipround({
-        regs[7]+key[3],regs[6]+key[2],regs[5],regs[4]
-    });
-    wire [255:0] finalized = x_mix ^ y_mix;
+    // The init and two final digest SipRounds are mutually exclusive.
+    // Reuse one 256-bit round network and its existing sip_state register,
+    // avoiding three parallel 64-bit-adder networks per replicated lane.
+    wire [255:0] sip_input = state == FINISH_A
+        ? {regs[3],regs[2],regs[1]+key[1],regs[0]+key[0]}
+        : state == FINISH_B
+        ? {regs[7]+key[3],regs[6]+key[2],regs[5],regs[4]}
+        : sip_state;
+    wire [255:0] sip_output = sipround(sip_input);
+    wire [255:0] finalized = sip_state ^ sip_output;
 
     always_ff @(posedge clk) begin
         if (rst) begin
@@ -129,7 +132,7 @@ module hashx_core(
                 end
                 INIT: begin
                     case (init_step)
-                        0,1,3,4,5,6,8,9,10,11: sip_state <= sipround(sip_state);
+                        0,1,3,4,5,6,8,9,10,11: sip_state <= sip_output;
                         2: begin
                             sip_state[63:0] <= sip_state[63:0] ^ current_nonce;
                             sip_state[191:128] <= sip_state[191:128] ^ 64'hee;
@@ -178,7 +181,7 @@ module hashx_core(
                     endcase
                     if (opcode != 0 && opcode != 1 && opcode != 2) begin
                         if (opcode != 10 || branch_used || (mulh_result & instr[31:0]) != 0) begin
-                            if (pc == 511) state <= FINISH;
+                            if (pc == 511) state <= FINISH_A;
                             else begin pc <= pc + 1'b1; state <= EXEC; end
                         end
                     end
@@ -197,10 +200,14 @@ module hashx_core(
                         regs[mul_dst] <= signed_high;
                         mulh_result <= signed_high[31:0];
                     end
-                    if (pc == 511) state <= FINISH;
+                    if (pc == 511) state <= FINISH_A;
                     else begin pc <= pc + 1'b1; state <= EXEC; end
                 end
-                FINISH: begin
+                FINISH_A: begin
+                    sip_state <= sip_output;
+                    state <= FINISH_B;
+                end
+                FINISH_B: begin
                     digest <= finalized;
                     hit <= finalized[63:0] < current_target;
                     done <= 1;
