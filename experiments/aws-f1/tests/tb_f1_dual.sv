@@ -2,21 +2,14 @@
 module tb_f1_dual;
     logic clk=0, rst=1, wr_en=0;
     logic [31:0] wr_addr=0,wr_data=0,rd_addr=0;
-    wire [31:0] wx_read_data,hx_read_data;
-    wire [31:0] combined_read = ((rd_addr >= 32'h1000 && rd_addr < 32'h1050)
-        ? hx_read_data : wx_read_data);
+    wire [31:0] combined_read;
     logic [31:0] wx_cfg[0:131],hx_cfg[0:1031];
     logic [63:0] wx_golden[0:2];
     logic [255:0] hx_golden[0:2];
-    hashwx_mmio wx(
+    hash_f1_dual dut(
         .clk(clk),.rst(rst),.wr_en(wr_en),
         .wr_addr(wr_addr),.wr_data(wr_data),.rd_addr(rd_addr),
-        .rd_value(wx_read_data)
-    );
-    hashx_mmio hx(
-        .clk(clk),.rst(rst),.wr_en(wr_en),
-        .wr_addr(wr_addr),.wr_data(wr_data),.rd_addr(rd_addr),
-        .rd_value(hx_read_data)
+        .rd_value(combined_read)
     );
     always #5 clk=~clk;
     task automatic poke(input logic [31:0] addr,input logic [31:0] val);
@@ -58,7 +51,7 @@ module tb_f1_dual;
         begin: both_done
             for (int i=0;i<30000;i++) begin
                 @(negedge clk);
-                if(wx.scan_done && hx.scan_done) disable both_done;
+                if(dut.wx.scan_done && dut.hx.scan_done) disable both_done;
             end
             $fatal(1,"dual concurrent scan timed out");
         end

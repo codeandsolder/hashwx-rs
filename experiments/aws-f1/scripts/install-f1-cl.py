@@ -22,28 +22,21 @@ def main():
     rtl_modules = (
         "hashwx_core.sv", "hashwx_scan.sv", "hashwx_mmio.sv",
         "hashx_core.sv", "hashx_scan.sv", "hashx_mmio.sv",
+        "hash_f1_dual.sv",
     )
     for filename in rtl_modules:
         shutil.copy2(here / "rtl" / filename, dest / "design" / filename)
     top = dest / "design" / "cl_hello_world.sv"
     source = top.read_text()
     needle = "// Read Response\nalways_ff"
-    insert = """// HashWX engine register bank, behind the standard F1 AXI-Lite OCL.
-logic [31:0] hashwx_read_data;
-hashwx_mmio HASHWX_MMIO (
+    insert = """// Two independent FPGA engines via a common, tested BAR0 register bank.
+logic [31:0] hash_read_data;
+hash_f1_dual HASH_ENGINES (
     .clk(clk_main_a0),
     .rst(!rst_main_n_sync),
     .wr_en(wready && (wstrb == 4'hf)),
     .wr_addr(wr_addr), .wr_data(wdata),
-    .rd_addr(araddr_q), .rd_value(hashwx_read_data)
-);
-logic [31:0] hashx_read_data;
-hashx_mmio HASHX_MMIO (
-    .clk(clk_main_a0),
-    .rst(!rst_main_n_sync),
-    .wr_en(wready && (wstrb == 4'hf)),
-    .wr_addr(wr_addr), .wr_data(wdata),
-    .rd_addr(araddr_q), .rd_value(hashx_read_data)
+    .rd_addr(araddr_q), .rd_value(hash_read_data)
 );
 
 // Read Response
@@ -52,11 +45,7 @@ always_ff"""
     source = source.replace(needle, insert)
     needle = chr(96) + "UNIMPLEMENTED_REG_VALUE        ;"
     assert source.count(needle) == 1
-    source = source.replace(
-        needle,
-        "((araddr_q >= 32'h1000 && araddr_q < 32'h1050)"
-        " ? hashx_read_data : hashwx_read_data);",
-    )
+    source = source.replace(needle, "hash_read_data              ;")
     top.write_text(source)
     encrypt = dest / "build" / "scripts" / "encrypt.tcl"
     text = encrypt.read_text()

@@ -11,7 +11,7 @@ The experiment contains two independent single-lane engines targeting the Xilinx
 - Both have bounded nonce-range scanners with first-hit early exit, independent configuration/status/result registers, and independent seed-specific program upload.
 - The Rust SDK host runner verifies the full hardware digest against the authoritative Rust reference before accepting any returned nonce.
 
-The design is **not yet performance competitive**: one lane per algorithm, OCL AXI-Lite scalar configuration, no DMA batch transport or parallel nonce queue. Resources, clock rate and timings are unmeasured until synthesis.
+The design is **not yet performance competitive**: one lane per algorithm, OCL AXI-Lite scalar configuration, no DMA batch transport or parallel nonce queue. Generic UltraScale+ area mapping is available below; clock rate and timings remain unknown until Vivado placement and routing.
 
 ## Test
 
@@ -19,16 +19,35 @@ From this directory, run:
 
     ./scripts/test.sh
 
-The script uses Rust 1.99 via rustup, managed sccache, and Icarus Verilog. Compiled output is stored under /home/jan/builds/hashwx-f1-20261115, not in this repository. Fixtures live in ignored tests/fixtures.
+The script uses Rust 1.99 via rustup, managed sccache, Icarus Verilog, Verilator, and the pinned AWS F1 HDK example for a source-level generator regression. Compiled output is stored under /home/jan/builds/hashwx-f1-20261115, not in this repository. Fixtures live in ignored tests/fixtures.
 
 - HashWX 16 generated programs × 3 nonces: **48 exact 64-bit hashes**.
-- HashX 36 generated programs (including variable-length seeds) × 3 nonces: **96 exact 256-bit hashes**.
+- HashX 36 generated programs (including variable-length seeds) × 3 nonces: **108 exact 256-bit hashes**.
 - Rust encoders: 128 independent generated programs per algorithm checked for lossless packing.
 - Both scanners: target/exclusive comparison, no-hit, zero count and first-hit conditions.
 - Both MMIO banks: program load, start, status, attempts, winner hash.
 - Dual-engine BAR0 model: HashX and HashWX run concurrently with independent, correct outputs.
 
-Simulation costs on tested programs are 13,836 clocks per HashWX candidate and 3,790–3,909 clocks per HashX candidate. These are **not real FPGA throughput numbers**.
+With one shared HashWX 64x64 multiplier and a single scratchpad BRAM read port, simulation costs on tested programs are **15,628 clocks per HashWX candidate** (previously 13,836) and **3,790–3,909 clocks per HashX candidate**. These are **not real FPGA throughput numbers**.
+
+## Synthesized resource footprint (Yosys, UltraScale+)
+
+Run ./scripts/synth.sh from this directory after installing Yosys and ABC. All
+temporary netlists, logs and ABC scratch files live under the owned build
+directory. These are *unplaced* technology mapping counts, not Vivado area or
+timing closure.
+
+| Engine | DSP48E2 | RAMB36E2 | Estimated logic cells |
+|---|---:|---:|---:|
+| HashWX, original baseline (two multipliers/two scratch read ports) | 20 | 9 | 4,504 |
+| HashWX, shared multiplier + single scratch port | 10 | 5 | 4,287 |
+| HashX, time-multiplexed 16x16 multiplier | 1 | 1 | 5,006 |
+| Combined two-engine BAR0 wrapper + scanner/control | 11 | 6 | 10,230 |
+
+Resource counts are from Yosys 0.66, synth_xilinx -family xcup, with IO pads
+and auto clock buffers disabled. The memory optimization costs one additional
+cycle per affected read. F1 XCVU9P-specific Vivado timing and proper
+DSP/BRAM placement are still required before predicting any hashes/second.
 
 ## F1 HDK and custom logic
 
@@ -40,7 +59,8 @@ Generate a separate CL by running:
         --example /home/jan/references/aws-fpga-f1-v1.4.25/hdk/cl/examples/cl_hello_world \
         --dest /home/jan/builds/hashwx-f1-20261115/cl_hashwx_hashx
 
-The generator preserves the original AWS example source/licenses, OCL interface, port list, tie-offs and build scripts, adds six RTL modules, wires both MMIO banks, and extends encrypt.tcl. The original HDK checkout is never modified. It refuses to overwrite the destination.
+The generator preserves the original AWS example source/licenses, OCL interface, port list, tie-offs and build scripts, adds seven RTL modules and connects the exact same synthesizable dual-engine
+BAR0 wrapper used by the testbench, and extends encrypt.tcl. The original HDK checkout is never modified. It refuses to overwrite the destination.
 
 **No Vivado synthesis or AWS AFI has been performed.** On an appropriately licensed F1 Vivado/HDK machine, the generated CL is intended as CL_DIR for the normal AWS design-checkpoint/AFI flow. The shell-level integration still requires a real Vivado test.
 
@@ -81,7 +101,9 @@ Arguments accept decimal or 0x-prefixed hex. Host runners check expected magic, 
 
 ## Required next work
 
-1. Synthesize on XCVU9P: verify BRAM inference, DSP48E2 utilization, 64-bit combinational multiply paths, clock closure and power.
+1. Run full XCVU9P Vivado synthesis, placement and routing to verify exact
+BRAM/DSP placement, critical paths, timing closure and power. Yosys UltraScale+
+mapping already passes; actual Vivado is not installed.
 2. Replace single-lane MMIO execution with many pipelined lanes, batched descriptor dispatch, and DMA result queues.
 3. Run F1 HDK full-shell compilation and generate/load an AFI on AWS.
 4. Validate actual F1 host-device latency, concurrent work, cost per hash and watts per hash against optimized CPU/GPU baselines.

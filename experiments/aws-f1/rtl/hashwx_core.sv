@@ -19,6 +19,7 @@ module hashwx_core (
     logic [255:0] sip_state;
     logic [63:0] current_nonce, current_target;
     logic [63:0] read_lo,read_hi;
+    logic [63:0] scratch_read_data;
     logic [13:0] read_addr;
     logic [7:0] pc;
     logic [8:0] snapshot_count;
@@ -29,7 +30,7 @@ module hashwx_core (
     logic memory_phase;
 
     typedef enum logic [3:0] {
-        IDLE, INIT, FETCH, SNAPSHOT, READ0, READ1, EXEC, FINISH
+        IDLE, INIT, FETCH, SNAPSHOT, READ0, READ1, READ2, EXEC, FINISH
     } state_t;
     state_t state;
 
@@ -61,12 +62,22 @@ module hashwx_core (
     wire [2:0] src = instruction[8:6];
     wire [5:0] imm = instruction[5:0];
     wire [2:0] branch_dst = microcode[{pc[7:3],3'b000}][11:9];
-    wire [63:0] dst_value = regs[dst];
+    wire [63:0] dst_value = regs[{1'b0,dst}];
+    // Single physical read port: READ0 and READ1 issue two sequential
+    // synchronous reads. READ1 also captures the previous low word, and
+    // READ2 captures the final high word. This permits one BRAM copy.
+    wire [11:0] scratch_word_addr =
+        {1'b0,read_addr[13:3]} + {11'b0,(state == READ1)};
     wire [5:0] shift_bytes = {read_addr[2:0],3'b000};
     wire [63:0] scratch_source = (read_lo >> shift_bytes)
                   | (read_hi << (7'd64 - {1'b0,shift_bytes}));
-    wire [63:0] source = memory_phase ? scratch_source : regs[src];
+    wire [63:0] source = memory_phase ? scratch_source : regs[{1'b0,src}];
+    // RMCG and the regular MUL opcodes are mutually exclusive. Feed their
+    // operands to one hardware multiplier instead of synthesizing two DSP trees.
     logic [63:0] modified, shifted, value;
+    wire [63:0] mul_a = (opcode == 4'd3) ? dst_value : modified;
+    wire [63:0] mul_b = (opcode == 4'd3) ? regs[8] : source;
+    wire [63:0] mul_product = mul_a * mul_b;
     always_comb begin
         modified = dst_value;
         shifted = dst_value;
@@ -78,11 +89,10 @@ module hashwx_core (
                     4'd1: modified = dst_value ^ {58'b0,imm};
                     default: modified = dst_value + {58'b0,imm};
                 endcase
-                value = modified * source;
+                value = mul_product;
             end
             4'd3: begin
-                modified = dst_value * regs[8];
-                value = (modified >> imm) | (modified << (7'd64 - {1'b0,imm}));
+                value = (mul_product >> imm) | (mul_product << (7'd64 - {1'b0,imm}));
             end
             4'd4,4'd5,4'd6: begin
                 shifted = (dst_value >> imm) | (dst_value << (7'd64 - {1'b0,imm}));
@@ -140,6 +150,8 @@ module hashwx_core (
             read_hi <= 0;
             for (int j=0; j<9; j++) regs[j] <= 0;
         end else begin
+            if (state == READ0 || state == READ1)
+                scratch_read_data <= scratch[scratch_word_addr];
             if (cfg_we && state == IDLE) begin
                 if (cfg_addr < 128) begin
                     microcode[{cfg_addr[6:0],1'b0}] <= cfg_data[15:0];
@@ -205,34 +217,35 @@ module hashwx_core (
                         snapshot_word <= 0;
                         state <= SNAPSHOT;
                     end else if (memory_phase && opcode != 3) begin
-                        read_addr <= regs[src][13:0];
+                        read_addr <= regs[{1'b0,src}][13:0];
                         state <= READ0;
                     end else state <= EXEC;
                 end
                 SNAPSHOT: begin
                     // Each snapshot stores R7..R0 at 8 descending 64-bit words.
-                    scratch[(12'd2040 - {snapshot_count,3'b000}) + snapshot_word]
-                        <= regs[3'd7 - snapshot_word];
+                    scratch[(12'd2040 - {snapshot_count,3'b000}) + {9'd0,snapshot_word}]
+                        <= regs[{1'b0,(3'd7 - snapshot_word)}];
                     if (snapshot_word == 7) begin
                         snapshot_count <= snapshot_count + 1'b1;
                         state <= EXEC;
                     end else snapshot_word <= snapshot_word + 1'b1;
                 end
-                READ0: begin
-                    read_lo <= scratch[read_addr[13:3]];
-                    state <= READ1;
-                end
+                READ0: state <= READ1;
                 READ1: begin
-                    read_hi <= scratch[{1'b0,read_addr[13:3]} + 1'b1];
+                    read_lo <= scratch_read_data;
+                    state <= READ2;
+                end
+                READ2: begin
+                    read_hi <= scratch_read_data;
                     state <= EXEC;
                 end
                 EXEC: begin
-                    regs[dst] <= value;
+                    regs[{1'b0,dst}] <= value;
                     if (pc[2:0] != 7) begin
                         pc <= pc + 1'b1;
                         state <= FETCH;
                     end else if (budget != 0 &&
-                       (pc[7:3] == 31 || !regs[branch_dst][5])) begin
+                       (pc[7:3] == 31 || !regs[{1'b0,branch_dst}][5])) begin
                         budget <= budget - 1'b1;
                         pc <= {pc[7:3],3'b000};
                         state <= FETCH;
