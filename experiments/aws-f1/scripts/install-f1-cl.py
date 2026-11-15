@@ -19,7 +19,11 @@ def main():
     if dest.exists():
         raise SystemExit(f"destination exists; refusing overwrite: {dest}")
     shutil.copytree(example, dest, symlinks=True, ignore=shutil.ignore_patterns(".git", "build.log", "*.dcp", "*.tar"))
-    for filename in ("hashwx_core.sv", "hashwx_scan.sv", "hashwx_mmio.sv"):
+    rtl_modules = (
+        "hashwx_core.sv", "hashwx_scan.sv", "hashwx_mmio.sv",
+        "hashx_core.sv", "hashx_scan.sv", "hashx_mmio.sv",
+    )
+    for filename in rtl_modules:
         shutil.copy2(here / "rtl" / filename, dest / "design" / filename)
     top = dest / "design" / "cl_hello_world.sv"
     source = top.read_text()
@@ -33,6 +37,14 @@ hashwx_mmio HASHWX_MMIO (
     .wr_addr(wr_addr), .wr_data(wdata),
     .rd_addr(araddr_q), .rd_value(hashwx_read_data)
 );
+logic [31:0] hashx_read_data;
+hashx_mmio HASHX_MMIO (
+    .clk(clk_main_a0),
+    .rst(!rst_main_n_sync),
+    .wr_en(wready && (wstrb == 4'hf)),
+    .wr_addr(wr_addr), .wr_data(wdata),
+    .rd_addr(araddr_q), .rd_value(hashx_read_data)
+);
 
 // Read Response
 always_ff"""
@@ -40,7 +52,11 @@ always_ff"""
     source = source.replace(needle, insert)
     needle = chr(96) + "UNIMPLEMENTED_REG_VALUE        ;"
     assert source.count(needle) == 1
-    source = source.replace(needle, "hashwx_read_data               ;")
+    source = source.replace(
+        needle,
+        "((araddr_q >= 32'h1000 && araddr_q < 32'h1050)"
+        " ? hashx_read_data : hashwx_read_data);",
+    )
     top.write_text(source)
     encrypt = dest / "build" / "scripts" / "encrypt.tcl"
     text = encrypt.read_text()
@@ -48,10 +64,10 @@ always_ff"""
     assert text.count(marker) == 1
     added = "".join(
         f"file copy -force $CL_DIR/design/{name} $TARGET_DIR\n"
-        for name in ("hashwx_core.sv","hashwx_scan.sv","hashwx_mmio.sv")
+        for name in rtl_modules
     )
     encrypt.write_text(text.replace(marker, added + marker))
-    print(f"Generated {dest}; F1 top and encrypt.tcl updated, three RTL files installed.")
+    print(f"Generated {dest}; F1 top and encrypt.tcl updated, {len(rtl_modules)} RTL files installed.")
 
 if __name__ == "__main__":
     main()

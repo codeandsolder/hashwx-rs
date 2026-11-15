@@ -1,117 +1,92 @@
-# HashWX 1.0 FPGA prototype for AWS EC2 F1
+# HashX v1 + HashWX 1.0 on AWS EC2 F1
 
-Status: **working RTL simulation / F1 OCL integration source, not yet a synthesized AFI**.
+**Status: fully simulated execution/scan engines and F1 OCL BAR0 adapter, not yet an AFI or a physical F1 benchmark.**
 
-This experiment supplies a HashWX 1.0 program interpreter, bounded nonce-range scanner,
-F1 BAR0 MMIO endpoint, AWS F1 HDK CL generator, and Rust SDK host runner.
-It reuses the generated, immutable ProgramSet and oracle from this repository.
-**HashX v1 is not yet implemented in FPGA RTL**; it has a different 512-instruction ISA,
-64-bit signed/unsigned high-half multiplies, and one-shot branches.
+## Implemented
 
-## Reproduce local correctness
+The experiment contains two independent single-lane engines targeting the Xilinx XCVU9P in an AWS f1.2xlarge:
 
-On Acer, run:
+- **HashWX 1.0:** 256 generated 16-bit operations, nine 64-bit registers, all 13 opcodes, SipHash setup/finalization, 16 KiB scratchpad + 8-byte sentinel, unaligned loads, snapshots, and branch budget.
+- **HashX v1:** 512 generated 64-bit encoded instructions, all 11 opcodes, SipHash setup and 256-bit digest, unsigned/signed high-half multiply, one-shot branching. A single time-multiplexed 16×16 multiplier accumulates 128-bit products in 16 cycles.
+- Both have bounded nonce-range scanners with first-hit early exit, independent configuration/status/result registers, and independent seed-specific program upload.
+- The Rust SDK host runner verifies the full hardware digest against the authoritative Rust reference before accepting any returned nonce.
+
+The design is **not yet performance competitive**: one lane per algorithm, OCL AXI-Lite scalar configuration, no DMA batch transport or parallel nonce queue. Resources, clock rate and timings are unmeasured until synthesis.
+
+## Test
+
+From this directory, run:
 
     ./scripts/test.sh
 
-The test harness uses Rust 1.99 and managed sccache, compiles/runs the
-Rust reference program encoder and two Icarus Verilog testbenches.
-Default build outputs go to /home/jan/builds/hashwx-f1-20261115,
-and fixture outputs under ignored tests/fixtures.
+The script uses Rust 1.99 via rustup, managed sccache, and Icarus Verilog. Compiled output is stored under /home/jan/builds/hashwx-f1-20261115, not in this repository. Fixtures live in ignored tests/fixtures.
 
-Currently verified:
-- 16 independent generated HashWX programs, three nonces per program = 48 exact
-  64-bit FPGA-RTL vs portable-Rust matches.
-- 128 additional generated programs checked for lossless compact IR encoding.
-- Bounded scan correctness: no-hit, empty range, equality boundary, first-hit exit.
-- MMIO program upload and start/status/winner register readback.
-- One reference program requires 13,836 simulated clock cycles per nonce;
-  **no FPGA frequency, throughput, resource use, or PCIe latency is established**.
+- HashWX 16 generated programs × 3 nonces: **48 exact 64-bit hashes**.
+- HashX 36 generated programs (including variable-length seeds) × 3 nonces: **96 exact 256-bit hashes**.
+- Rust encoders: 128 independent generated programs per algorithm checked for lossless packing.
+- Both scanners: target/exclusive comparison, no-hit, zero count and first-hit conditions.
+- Both MMIO banks: program load, start, status, attempts, winner hash.
+- Dual-engine BAR0 model: HashX and HashWX run concurrently with independent, correct outputs.
 
-## F1-specific integration
+Simulation costs on tested programs are 13,836 clocks per HashWX candidate and 3,790–3,909 clocks per HashX candidate. These are **not real FPGA throughput numbers**.
 
-Use **aws/aws-fpga tag v1.4.25** (the F1 shell), rather than the current AWS
-F2 HDK. From the repository's experiments/aws-f1 directory:
+## F1 HDK and custom logic
+
+Use AWS **F1 HDK tag v1.4.25**, not the latest F2-specific branch.
+
+Generate a separate CL by running:
 
     uv run --no-project python scripts/install-f1-cl.py \
-      --example /home/jan/references/aws-fpga-f1-v1.4.25/hdk/cl/examples/cl_hello_world \
-      --dest /home/jan/builds/hashwx-f1-20261115/cl_hashwx
+        --example /home/jan/references/aws-fpga-f1-v1.4.25/hdk/cl/examples/cl_hello_world \
+        --dest /home/jan/builds/hashwx-f1-20261115/cl_hashwx_hashx
 
-The generated CL preserves the AWS example licensing/header, CL port list,
-AXI-Lite OCL register slice, resets, tie-offs, IP and Vivado scripts.
-The generator injects the HashWX OCL endpoint in cl_hello_world.sv,
-adds the three custom SV modules, and extends encrypt.tcl to copy them.
-The example's build workflow may then be used with CL_DIR pointing to that
-generated cl_hashwx location on an F1-compatible HDK/Vivado environment.
+The generator preserves the original AWS example source/licenses, OCL interface, port list, tie-offs and build scripts, adds six RTL modules, wires both MMIO banks, and extends encrypt.tcl. The original HDK checkout is never modified. It refuses to overwrite the destination.
 
-AWS F1 uses the Xilinx Virtex UltraScale+ XCVU9P. Bitstream/AFI generation and
-PCIe execution **have not been run here** (no licensed Vivado/physical F1 in
-this development environment). This wrapper therefore remains an untested
-Vivado integration even though its MMIO endpoint passes direct RTL simulation.
+**No Vivado synthesis or AWS AFI has been performed.** On an appropriately licensed F1 Vivado/HDK machine, the generated CL is intended as CL_DIR for the normal AWS design-checkpoint/AFI flow. The shell-level integration still requires a real Vivado test.
 
-### OCL MMIO map (AppPF BAR0, aligned u32 offsets)
+## OCL BAR0 register map
 
-| Offset | Direction | Meaning |
+Offsets are byte addresses; each access is aligned 32-bit little-endian.
+
+| Meaning | HashWX address | HashX address |
 |---|---|---|
-| 0x600 | R | Magic 0x48585731 ("HXW1") |
-| 0x604 | W | Start command: bit 0 |
-| 0x608..0x60c | RW | Starting 64-bit nonce (low, high) |
-| 0x610..0x614 | RW | Exclusive 64-bit hash threshold (low, high) |
-| 0x618 | RW | Number of sequential nonces to try (u32) |
-| 0x61c | R | Busy bit 0, done bit 1, found bit 2 |
-| 0x620 | R | Number of attempted nonces |
-| 0x624..0x628 | R | Winning nonce (low, high) |
-| 0x62c..0x630 | R | Winning full 64-bit hash (low, high) |
-| 0x800..0x9fc | W | 128 u32 words, each encoding two consecutive 16-bit instructions |
-| 0xa00..0xa0c | W | k0 and k1 as four little-endian 32-bit words |
+| Algorithm magic | 0x600 = 0x48585731 | 0x1000 = 0x48585831 |
+| Start (write bit 0) | 0x604 | 0x1004 |
+| First nonce, low/high | 0x608 / 0x60c | 0x1008 / 0x100c |
+| Exclusive hash target, low/high | 0x610 / 0x614 | 0x1010 / 0x1014 |
+| Nonce count (u32) | 0x618 | 0x1018 |
+| Status busy/done/found (bits 0,1,2) | 0x61c | 0x101c |
+| Attempt count | 0x620 | 0x1020 |
+| Winner nonce, low/high | 0x624 / 0x628 | 0x1024 / 0x1028 |
+| Winner digest | 0x62c / 0x630 (64 bits) | 0x102c..0x1048 (8×32-bit, 256 bits) |
+| Instruction program | 0x800..0x9fc (128×32-bit) | 0x4000..0x4ffc (1024×32-bit) |
+| Seed-derived key words | 0xa00..0xa0c (4×32-bit) | 0x5000..0x501c (8×32-bit) |
 
-Instruction bit layout:
-opcode [15:12], destination [11:9], source [8:6], immediate [5:0].
-RMCG uses implicit register 8 (the source field is ignored).
-Configure programs **only while idle**; the current interface does not
-implement an AXI error response for writes attempted while busy.
-No double-buffering or multi-lane replication has been implemented.
+HashWX instructions: 16 bits (opcode [15:12], dst [11:9], src [8:6], imm [5:0]); RMCG has implicit register 8.
+HashX instructions: 64 bits (opcode [63:60], dst [59:57], src [56:54], shift [53:48], signed immediate/branch mask [31:0]); least-significant 32-bit word loaded first.
 
-### Rust host SDK runner
+Configuration writes are only accepted when idle; writes while busy are ignored, not AXI-rejected. The original AWS example 0x500/0x504 registers remain in place.
 
-On an F1 instance with AWS SDK userspace installed, build with Rust 1.99:
+## Rust host
+
+On an AWS F1 host with the SDK installed and native libfpga_mgmt available:
 
     cargo +1.99.0 build --release --manifest-path host/Cargo.toml \
-      --features aws-f1-sdk --bin hashwx-f1-solve
+        --features aws-f1-sdk --bins
 
-That binary dynamically uses the AWS SDK symbols from libfpga_mgmt, which must
-be installed and linkable on the F1 host. Invoke it with:
+    hashwx-f1-solve <seed_hex_64> <start_nonce> <nonce_count> <exclusive_target> [slot]
+    hashx-f1-solve <seed_hex_any_even_length> <start_nonce> <nonce_count> <exclusive_target> [slot]
 
-    hashwx-f1-solve <64-hex-digit-seed> <start-nonce> <nonce-count> <exclusive-target> [slot]
+Arguments accept decimal or 0x-prefixed hex. Host runners check expected magic, upload packed program and keys, initiate bounded scan, check returned nonce range and threshold, and compare the complete hardware digest to the portable Rust implementation. Both runners pass Rust 1.99 all-feature compile checks; AWS SDK linking/execution remains untested.
 
-Each uint64 argument accepts decimal or 0x-prefixed hexadecimal.
-The runner validates the HXW1 marker, uploads an authoritative generated
-ProgramSet, starts a bounded search, polls status, and **CPU-verifies** any
-FPGA-reported candidate against hashwx-rs. Compilation on Acer used
-cargo check (not link or runtime verification).
+## Required next work
 
-## Architecture and outstanding work
+1. Synthesize on XCVU9P: verify BRAM inference, DSP48E2 utilization, 64-bit combinational multiply paths, clock closure and power.
+2. Replace single-lane MMIO execution with many pipelined lanes, batched descriptor dispatch, and DMA result queues.
+3. Run F1 HDK full-shell compilation and generate/load an AFI on AWS.
+4. Validate actual F1 host-device latency, concurrent work, cost per hash and watts per hash against optimized CPU/GPU baselines.
+5. Extend the differential corpus after memory banking, multiplier pipelining and multi-lane changes.
 
-Each lane has 256 16-bit instructions, nine 64-bit VM registers, 16 KiB
-of scratch plus a sentinel word, and SipHash-style initialization/finalization.
-The scratch is held in a 64-bit word memory; two synchronous reads reconstruct
-byte-unaligned 64-bit source values. The register-phase snapshots and both
-phase-specific branch rules are implemented.
-
-Before treating this as a competitive FPGA solver:
-1. Run Vivado synthesis, utilization and timing against F1's VU9P and inspect
-   the multiplier/BRAM mapping. Share and pipeline the 64x64 arithmetic.
-2. Replace 32-bit MMIO upload and one-nonce-at-a-time control with batched
-   DMA and a multi-lane compute engine; measure real clock and PCIe overhead.
-3. Add the separate HashX v1 ISA and register initialization/digest RTL,
-   with exact Tor/reference differential vectors and seed rejection handling.
-4. Build the AFI through the F1 HDK and test it on f1.2xlarge.
-5. Measure performance per dollar against the existing optimized CPU solver.
-
-Upstream sources:
-- https://github.com/aws/aws-fpga/tree/v1.4.25
-- https://github.com/tevador/hashwx
-- https://github.com/codeandsolder/hashwx-rs
-
-All original AWS example code remains external to this experiment until the
-CL installer copies it into a build-only location.
+Source: https://github.com/codeandsolder/hashwx-rs
+F1 HDK: https://github.com/aws/aws-fpga/tree/v1.4.25
+HashWX upstream: https://github.com/tevador/hashwx

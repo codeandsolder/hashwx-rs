@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 publish = false
 [dependencies]
-hashwx = { path = "../../..", default-features = false }
+hashwx = { path = "../../..", default-features = false, features = ["hashx"] }
 
 [features]
 aws-f1-sdk = []
@@ -12,4 +12,13 @@ aws-f1-sdk = []
 [[bin]]
 name = "hashwx-f1-solve"
 path = "src/bin/solve.rs"
+required-features = ["aws-f1-sdk"]
+
+[[bin]]
+name = "hashx-f1-fixtures"
+path = "src/bin/hashx_fixtures.rs"
+
+[[bin]]
+name = "hashx-f1-solve"
+path = "src/bin/solve_hashx.rs"
 required-features = ["aws-f1-sdk"]
