@@ -29,6 +29,7 @@ FILES = (
     "hashx_mmio.sv",
     "hash_parallel_scan.sv",
     "hash_job_queue.sv",
+    "hash_pcim_dma.sv",
     "hash_f1_dual.sv",
 )
 
@@ -59,6 +60,10 @@ def main() -> None:
         assert chr(96) + "UNIMPLEMENTED_REG_VALUE" not in top
         assert chr(96) + "UNIMPLEMENTED_REG_VALUE" in source
         assert "HASH_ENGINES" not in source
+        assert 'unused_pcim_template.inc' not in top
+        assert 'unused_pcim_template.inc' in source
+        assert '.pcim_araddr(cl_sh_pcim_araddr)' in top
+        assert '.pcim_wdata(cl_sh_pcim_wdata)' in top
         for name in FILES:
             assert (target / "design" / name).read_bytes() == (
                 ROOT / "rtl" / name
@@ -67,7 +72,7 @@ def main() -> None:
         repeated = subprocess.run(command, capture_output=True, text=True)
         assert repeated.returncode != 0
         assert "refusing overwrite" in repeated.stderr + repeated.stdout
-    print("PASS real AWS F1 v1.4.25 CL generator, nine modules, no source mutation")
+    print("PASS real AWS F1 v1.4.25 CL generator, ten modules, no source mutation")
 
 
 if __name__ == "__main__":

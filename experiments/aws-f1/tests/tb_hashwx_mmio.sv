@@ -4,7 +4,18 @@ module tb_hashwx_mmio;
     wire [31:0] rd_value;
     logic [31:0] cfg [0:131];
     logic [63:0] golden [0:2];
-    hashwx_mmio dut(.*);
+    hashwx_mmio dut(
+        .clk(clk), .rst(rst), .wr_en(wr_en),
+        .wr_addr(wr_addr), .wr_data(wr_data), .rd_addr(rd_addr),
+        .rd_value(rd_value),
+        .dma_active(1'b0), .dma_command_valid(1'b0),
+        .dma_result_pop(1'b0),
+        .dma_command_nonce('0), .dma_command_target('0),
+        .dma_command_count('0), .dma_command_tag('0),
+        .dma_command_ready(), .dma_result_valid(), .dma_result_found(),
+        .dma_result_tag(), .dma_result_attempts(), .dma_result_nonce(),
+        .dma_result_hash(), .dma_config_idle()
+    );
     always #5 clk = ~clk;
     task automatic poke(input logic [31:0] addr, input logic [31:0] val);
         @(negedge clk);

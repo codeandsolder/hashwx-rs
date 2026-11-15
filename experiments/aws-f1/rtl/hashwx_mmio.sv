@@ -7,7 +7,15 @@ module hashwx_mmio #(
 )(
     input logic clk, rst, wr_en,
     input logic [31:0] wr_addr, wr_data, rd_addr,
-    output logic [31:0] rd_value
+    output logic [31:0] rd_value,
+    input logic dma_active, dma_command_valid, dma_result_pop,
+    output logic dma_command_ready, dma_result_valid, dma_result_found,
+    input logic [63:0] dma_command_nonce, dma_command_target,
+    input logic [31:0] dma_command_count, dma_command_tag,
+    output logic [31:0] dma_result_tag, dma_result_attempts,
+    output logic [63:0] dma_result_nonce,
+    output logic [63:0] dma_result_hash,
+    output logic dma_config_idle
 );
     logic [63:0] first_nonce, target;
     logic [31:0] nonce_count, staged_tag;
@@ -20,11 +28,21 @@ module hashwx_mmio #(
     wire [31:0] scanner_count, scanner_attempts;
     wire [63:0] scanner_nonce, scanner_target, scanner_winner_nonce, scanner_winner_hash;
 
-    wire command_valid = wr_en && wr_addr == 32'h604 && wr_data[0];
-    wire result_pop = wr_en && wr_addr == 32'h63c && wr_data[0];
+    wire mmio_command = wr_en && wr_addr == 32'h604 && wr_data[0];
+    wire command_valid = dma_active ? dma_command_valid : mmio_command;
+    assign dma_command_ready = dma_active && command_ready;
+    wire result_pop = dma_active ? dma_result_pop :
+        (wr_en && wr_addr == 32'h63c && wr_data[0]);
+    assign dma_result_valid = completion_valid;
+    assign dma_result_found = completion_found;
+    assign dma_result_tag = completed_tag;
+    assign dma_result_attempts = completed_attempts;
+    assign dma_result_nonce = completed_nonce;
+    assign dma_result_hash = completed_hash;
+    assign dma_config_idle = queue_idle;
     wire config_write = wr_en && wr_addr >= 32'h800 &&
         wr_addr < 32'ha10 && wr_addr[1:0] == 0;
-    wire cfg_we = config_write && queue_idle;
+    wire cfg_we = config_write && queue_idle && !dma_active;
 
     hashwx_scan #(.LANES(LANES)) scanner(
         .clk(clk), .rst(rst),
@@ -38,8 +56,10 @@ module hashwx_mmio #(
     hash_job_queue #(.HASH_BITS(64), .DEPTH(QUEUE_DEPTH)) queue(
         .clk(clk), .rst(rst),
         .command_valid(command_valid), .command_ready(command_ready),
-        .command_nonce(first_nonce), .command_target(target),
-        .command_count(nonce_count), .command_tag(staged_tag),
+        .command_nonce(dma_active ? dma_command_nonce : first_nonce),
+        .command_target(dma_active ? dma_command_target : target),
+        .command_count(dma_active ? dma_command_count : nonce_count),
+        .command_tag(dma_active ? dma_command_tag : staged_tag),
         .config_idle(queue_idle),
         .scanner_start(scanner_start), .scanner_nonce(scanner_nonce),
         .scanner_target(scanner_target), .scanner_count(scanner_count),
@@ -63,8 +83,10 @@ module hashwx_mmio #(
             overflow_error <= 0;
             program_error <= 0;
         end else if (wr_en) begin
-            if (command_valid && !command_ready) overflow_error <= 1;
-            if (config_write && !queue_idle) program_error <= 1;
+            if (mmio_command && (dma_active || !command_ready))
+                overflow_error <= 1;
+            if (config_write && (!queue_idle || dma_active))
+                program_error <= 1;
             case (wr_addr)
                 32'h608: first_nonce[31:0] <= wr_data;
                 32'h60c: first_nonce[63:32] <= wr_data;

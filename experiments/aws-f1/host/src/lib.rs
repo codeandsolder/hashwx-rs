@@ -2,4 +2,5 @@
 #[cfg(feature = "aws-f1-sdk")]
 pub mod aws;
 pub mod encoding;
+pub mod pcim;
 pub mod queue;

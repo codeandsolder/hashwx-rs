@@ -7,7 +7,11 @@ module tb_mmio_queue;
     logic [31:0] wx_cfg[0:131],hx_cfg[0:1031];
     logic [63:0] wx_gold[0:2];
     logic [255:0] hx_gold[0:2];
-    hash_f1_dual dut(.*);
+    hash_f1_dual dut(
+        .clk(clk), .rst(rst), .wr_en(wr_en),
+        .wr_addr(wr_addr), .wr_data(wr_data), .rd_addr(rd_addr),
+        .rd_value(rd_value)
+    );
     always #5 clk=~clk;
 
     task automatic poke(input logic [31:0] addr, val);

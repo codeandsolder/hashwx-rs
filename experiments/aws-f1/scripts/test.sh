@@ -21,7 +21,7 @@ cargo +1.99.0 run --bin hashx-f1-fixtures --manifest-path host/Cargo.toml -- tes
 /home/jan/tools/iverilog-install/bin/vvp "$out/hashx_mmio_sim"
 /home/jan/tools/iverilog-install/bin/iverilog -g2012 -s tb_f1_dual -o "$out/f1_dual_sim" \
   rtl/hashwx_core.sv rtl/hash_parallel_scan.sv rtl/hashwx_scan.sv rtl/hash_job_queue.sv rtl/hashwx_mmio.sv \
-  rtl/hashx_core.sv rtl/hashx_scan.sv rtl/hashx_mmio.sv rtl/hash_f1_dual.sv tests/tb_f1_dual.sv
+  rtl/hashx_core.sv rtl/hashx_scan.sv rtl/hashx_mmio.sv rtl/hash_pcim_dma.sv rtl/hash_f1_dual.sv tests/tb_f1_dual.sv
 /home/jan/tools/iverilog-install/bin/vvp "$out/f1_dual_sim"
 # Lint exactly the dual-engine top instantiated by the generated F1 shell.
 verilator --lint-only -Wall -Wno-UNUSEDSIGNAL --top-module hash_f1_dual rtl/*.sv
@@ -40,3 +40,7 @@ vvp=/home/jan/tools/iverilog-install/bin/vvp
 "$vvp" "$out/queue_sim"
 "$iverilog" -g2012 -s tb_mmio_queue -o "$out/mmio_queue_sim" rtl/*.sv tests/tb_mmio_queue.sv
 "$vvp" "$out/mmio_queue_sim"
+# End-to-end host-memory PCIM AXI4 model including actual HashX/HashWX
+# programs, ring wrap, output backpressure and malformed descriptor faults.
+"$iverilog" -g2012 -s tb_pcim_dma -o "$out/pcim_dma_sim" rtl/*.sv tests/tb_pcim_dma.sv
+"$vvp" "$out/pcim_dma_sim"

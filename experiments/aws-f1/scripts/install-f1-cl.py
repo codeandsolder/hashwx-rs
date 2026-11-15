@@ -24,6 +24,7 @@ def main():
         "hashx_core.sv", "hashx_scan.sv", "hashx_mmio.sv",
         "hash_parallel_scan.sv",
         "hash_job_queue.sv",
+        "hash_pcim_dma.sv",
         "hash_f1_dual.sv",
     )
     for filename in rtl_modules:
@@ -38,13 +39,32 @@ hash_f1_dual HASH_ENGINES (
     .rst(!rst_main_n_sync),
     .wr_en(wready && (wstrb == 4'hf)),
     .wr_addr(wr_addr), .wr_data(wdata),
-    .rd_addr(araddr_q), .rd_value(hash_read_data)
+    .rd_addr(araddr_q), .rd_value(hash_read_data),
+    .pcim_awid(cl_sh_pcim_awid), .pcim_awaddr(cl_sh_pcim_awaddr),
+    .pcim_awlen(cl_sh_pcim_awlen), .pcim_awsize(cl_sh_pcim_awsize),
+    .pcim_awvalid(cl_sh_pcim_awvalid), .pcim_awready(sh_cl_pcim_awready),
+    .pcim_wdata(cl_sh_pcim_wdata), .pcim_wstrb(cl_sh_pcim_wstrb),
+    .pcim_wlast(cl_sh_pcim_wlast), .pcim_wvalid(cl_sh_pcim_wvalid),
+    .pcim_wready(sh_cl_pcim_wready),
+    .pcim_bid(sh_cl_pcim_bid), .pcim_bresp(sh_cl_pcim_bresp),
+    .pcim_bvalid(sh_cl_pcim_bvalid), .pcim_bready(cl_sh_pcim_bready),
+    .pcim_arid(cl_sh_pcim_arid), .pcim_araddr(cl_sh_pcim_araddr),
+    .pcim_arlen(cl_sh_pcim_arlen), .pcim_arsize(cl_sh_pcim_arsize),
+    .pcim_arvalid(cl_sh_pcim_arvalid), .pcim_arready(sh_cl_pcim_arready),
+    .pcim_rid(sh_cl_pcim_rid), .pcim_rdata(sh_cl_pcim_rdata),
+    .pcim_rresp(sh_cl_pcim_rresp), .pcim_rlast(sh_cl_pcim_rlast),
+    .pcim_rvalid(sh_cl_pcim_rvalid), .pcim_rready(cl_sh_pcim_rready)
 );
 
 // Read Response
 always_ff"""
     assert source.count(needle) == 1
     source = source.replace(needle, insert)
+    tieoff = chr(96) + 'include "unused_pcim_template.inc"'
+    assert source.count(tieoff) == 1
+    source = source.replace(tieoff, """// PCIM host-memory DMA driven by HASH_ENGINES.
+assign cl_sh_pcim_awuser = 19'd0;
+assign cl_sh_pcim_aruser = 19'd0;""")
     needle = chr(96) + "UNIMPLEMENTED_REG_VALUE        ;"
     assert source.count(needle) == 1
     source = source.replace(needle, "hash_read_data              ;")
