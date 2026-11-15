@@ -25,7 +25,7 @@ module tb_hashwx_mmio;
         $readmemh("tests/fixtures/golden.hex",golden);
         repeat(3) @(negedge clk);
         rst=0;
-        peek(32'h600,32'h48585731);
+        peek(32'h600,32'h48585732);
         for(int i=0;i<132;i++) poke(32'h800+i*4,cfg[i]);
         poke(32'h608,0);
         poke(32'h60C,0);
@@ -44,13 +44,17 @@ module tb_hashwx_mmio;
             end
             $fatal(1,"MMIO scan timeout");
         end
-        peek(32'h61C,32'd6); // done + found, no busy
+        peek(32'h61C,32'd15); // done + found, no busy
         peek(32'h620,32'd3);
         peek(32'h624,0);
         peek(32'h628,0);
         peek(32'h62C,golden[0][31:0]);
         peek(32'h630,golden[0][63:32]);
-        $display("PASS F1 OCL MMIO loading, scan, status, winner");
+        peek(32'h638,0);
+        peek(32'h640,32'h00010000);
+        poke(32'h63c,1);
+        peek(32'h61c,32'd8);
+        $display("PASS F1 OCL v2 queue loading, scan, completion, pop");
         $finish;
     end
 endmodule

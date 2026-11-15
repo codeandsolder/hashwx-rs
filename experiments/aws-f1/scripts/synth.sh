@@ -19,7 +19,7 @@ for block in hashx_core hashwx_core hash_f1_dual; do
         hashx_core) sources="$src_dir/hashx_core.sv" ;;
         hashwx_core) sources="$src_dir/hashwx_core.sv" ;;
         hash_f1_dual)
-            sources="$src_dir/hashwx_core.sv $src_dir/hashwx_scan.sv $src_dir/hashwx_mmio.sv $src_dir/hashx_core.sv $src_dir/hashx_scan.sv $src_dir/hashx_mmio.sv $src_dir/hash_parallel_scan.sv $src_dir/hash_f1_dual.sv" ;;
+            sources="$src_dir/hashwx_core.sv $src_dir/hashwx_scan.sv $src_dir/hashwx_mmio.sv $src_dir/hashx_core.sv $src_dir/hashx_scan.sv $src_dir/hashx_mmio.sv $src_dir/hash_parallel_scan.sv $src_dir/hash_job_queue.sv $src_dir/hash_f1_dual.sv" ;;
     esac
     if [ "$block" = hash_f1_dual ]; then
         stem="hash_f1_dual-$wx_lanes-wx-$hx_lanes-hx"

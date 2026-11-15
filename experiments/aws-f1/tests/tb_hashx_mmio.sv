@@ -22,7 +22,7 @@ module tb_hashx_mmio;
         $readmemh("tests/fixtures/hashx_golden_00.hex",gold);
         repeat(3) @(negedge clk);
         rst=0;
-        peek(32'h1000,32'h48585831);
+        peek(32'h1000,32'h48585832);
         for (int i=0;i<1032;i++) poke(32'h4000+i*4,cfg[i]);
         poke(32'h1008,0);
         poke(32'h100c,0);
@@ -38,12 +38,16 @@ module tb_hashx_mmio;
             end
             $fatal(1,"HashX MMIO scan timeout");
         end
-        peek(32'h101c,32'h6);
+        peek(32'h101c,32'hf);
         peek(32'h1020,32'h3);
         peek(32'h1024,0);
         peek(32'h1028,0);
         for(int i=0;i<8;i++) peek(32'h102c+i*4,gold[0][i*32 +: 32]);
-        $display("PASS HashX F1 OCL MMIO: program, scan, full 256-bit digest");
+        peek(32'h1050,0);
+        peek(32'h1058,32'h00010000);
+        poke(32'h1054,1);
+        peek(32'h101c,32'h8);
+        $display("PASS HashX F1 OCL v2 queue: program, scan, full 256-bit digest, pop");
         $finish;
     end
 endmodule

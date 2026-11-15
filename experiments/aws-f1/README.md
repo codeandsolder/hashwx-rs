@@ -10,9 +10,10 @@ The experiment contains two independent, separately parameterized multi-lane eng
 - **HashX v1:** 512 generated 64-bit encoded instructions, all 11 opcodes, SipHash setup and 256-bit digest, unsigned/signed high-half multiply, one-shot branching. A single time-multiplexed 16×16 multiplier accumulates 128-bit products in 16 cycles.
 - Both use a shared parameterized, wave-scheduled search controller, with independently configurable lane counts (four of each by default), broadcast seed-program upload, and independent configuration/status/result registers. Program storage is replicated in each lane so asynchronous execution can fetch different PCs.
 - Search work is issued in contiguous nonce waves, and results commit in nonce order: even when one lane finishes earlier, the lowest qualifying nonce in the earliest completed wave wins. A partial final wave only starts the required lanes. The attempt counter records **actual computed hashes** (including other lanes in the winning wave), not the winning nonce's 1-based index.
-- The Rust SDK host runner verifies the full hardware digest against the authoritative Rust reference before accepting any returned nonce.
+- Each algorithm has independent **four-entry** command and completion FIFOs; 32-bit tags preserve descriptor identity while the host posts more ranges. Results stay readable until explicitly acknowledged, with per-descriptor attempt counts.
+- The Rust SDK host runner streams arbitrary u64-length searches as 16,384-nonce tagged jobs, respects FIFO backpressure, drains queued work after a winner, and verifies every winning digest against the CPU implementation.
 
-The design is **not yet a production throughput solver**: four lanes per algorithm by default, OCL AXI-Lite scalar configuration, no DMA batch transport or queued work descriptors. Generic UltraScale+ area mapping is available below; clock rate and timing remain unknown until Vivado placement and routing.
+The design is **not yet a production throughput solver**: four lanes per algorithm by default, a small BAR0 descriptor/result FIFO, but still no DMA batch transport or AWS-shell timing validation. Generic UltraScale+ area mapping is available below; clock rate and timing remain unknown until Vivado placement and routing.
 
 ## Test
 
@@ -27,8 +28,9 @@ The script uses Rust 1.99 via rustup, managed sccache, Icarus Verilog, Verilator
 - Rust encoders: 128 independent generated programs per algorithm checked for lossless packing.
 - Both scanners: target/exclusive comparison, no-hit, zero count, later-wave first hit, multi-hit nonce ordering, partial final waves, 64-bit nonce wraparound and program reload.
 - Parallel scheduler oracle testing for **1, 2, 3, 4, 5, 7 and 8 lanes** per algorithm. Each setting tests both hashes against 64 sequential nonce reference results, plus wraparound oracle results.
-- Both MMIO banks: program load, start, status, attempts, winner hash.
-- Dual-engine BAR0 model: HashX and HashWX run concurrently with independent, correct outputs.
+- Both MMIO banks: program upload, four-entry job enqueue, completion retention until explicit pop, tags, attempts, winner hash, invalid program-write rejection, and readable FIFO status.
+- Non-power-of-two depth-3 FIFO simulation checks ordering, command backpressure and completion backpressure without executing the cryptographic cores.
+- Full dual-engine MMIO simulation: six concurrently queued jobs (three per algorithm) with independent results and complete CPU-oracle digests. Includes no-hit, early-hit and zero-count jobs.
 
 With one shared HashWX 64x64 multiplier and a single scratchpad BRAM read port, simulation costs on tested programs are **15,628 clocks per HashWX candidate** (previously 13,836) and **3,791–3,910 clocks per HashX candidate**. These are **not real FPGA throughput numbers**.
 
@@ -45,7 +47,8 @@ timing closure.
 | HashWX, shared multiplier + single scratch port | 10 | 5 | 4,287 |
 | HashX, time-multiplexed 16x16 multiplier and shared SipRound | 1 | 1 | 4,820 |
 | Combined scalar (one lane each) BAR0 wrapper + scanner/control | 11 | 6 | 10,230 |
-| Combined **4 HashWX + 4 HashX** lanes with MMIO and wave scheduler | **44** | **24** | **37,387** |
+| Combined 4 HashWX + 4 HashX lanes with wave scheduler (before FIFO) | 44 | 24 | 37,387 |
+| Combined 4+4 lanes, four-deep command/result FIFO per algorithm | **44** | **24** | **38,325** |
 
 Resource counts are from Yosys 0.66, synth_xilinx -family xcup, with IO pads
 and auto clock buffers disabled. The memory optimization costs one additional
@@ -83,8 +86,7 @@ counts (includes wave scheduling; no known FPGA clock frequency):
 
 This confirms the scheduler's near-linear **simulated-cycle** scaling;
 without placement/timing, do not interpret it as an actual FPGA hash-rate or
-cost-per-hash measurement. The register/MMIO hardware presently exposes one
-batch at a time, and a found result is selected only after its wave finishes.
+cost-per-hash measurement. The BAR0 register banks buffer four commands and four completed jobs per algorithm, while each scanner still executes one command at a time. A found result is selected only after its current nonce wave finishes.
 
 ## F1 HDK and custom logic
 
@@ -96,33 +98,65 @@ Generate a separate CL by running:
         --example /home/jan/references/aws-fpga-f1-v1.4.25/hdk/cl/examples/cl_hello_world \
         --dest /home/jan/builds/hashwx-f1-20261115/cl_hashwx_hashx
 
-The generator preserves the original AWS example source/licenses, OCL interface, port list, tie-offs and build scripts, adds eight RTL modules and connects the exact same synthesizable dual-engine BAR0 wrapper used by the testbench, and extends encrypt.tcl. The original HDK checkout is never modified. It refuses to overwrite the destination.
+The generator preserves the original AWS example source/licenses, OCL interface, port list, tie-offs and build scripts, adds nine RTL modules and connects the exact same synthesizable dual-engine BAR0 wrapper used by the testbench, and extends encrypt.tcl. The original HDK checkout is never modified. It refuses to overwrite the destination.
 
 **No Vivado synthesis or AWS AFI has been performed.** On an appropriately licensed F1 Vivado/HDK machine, the generated CL is intended as CL_DIR for the normal AWS design-checkpoint/AFI flow. The shell-level integration still requires a real Vivado test.
 
-## OCL BAR0 register map
+## F1 v2 BAR0 queued-command ABI
 
-Offsets are byte addresses; each access is aligned 32-bit little-endian.
+This intentionally replaces the old single-scan protocol without legacy
+opcode support. Identification markers are now **HXW2** and **HXX2**.
 
-| Meaning | HashWX address | HashX address |
+Each bank has one staging descriptor: first nonce, exclusive target, u32
+count and u32 tag. Writing bit 0 to enqueue snapshots those fields into a
+four-entry FIFO. Jobs execute in submission order; completions are buffered
+in a separate four-entry FIFO until explicitly popped. Program uploads are
+only permitted when command and completion FIFOs and the scanner are idle.
+Rejected writes set sticky error flags until explicitly cleared.
+
+All addresses are 32-bit little-endian BAR0 byte offsets.
+
+| Meaning | HashWX | HashX |
 |---|---|---|
-| Algorithm magic | 0x600 = 0x48585731 | 0x1000 = 0x48585831 |
-| Start (write bit 0) | 0x604 | 0x1004 |
-| First nonce, low/high | 0x608 / 0x60c | 0x1008 / 0x100c |
-| Exclusive hash target, low/high | 0x610 / 0x614 | 0x1010 / 0x1014 |
-| Nonce count (u32) | 0x618 | 0x1018 |
-| Status busy/done/found (bits 0,1,2) | 0x61c | 0x101c |
-| Attempt count | 0x620 | 0x1020 |
-| Winner nonce, low/high | 0x624 / 0x628 | 0x1024 / 0x1028 |
-| Winner digest | 0x62c / 0x630 (64 bits) | 0x102c..0x1048 (8×32-bit, 256 bits) |
-| Physical engine lane count (read-only) | 0x634 | 0x104c |
+| Algorithm marker | 0x600 = 0x48585732 | 0x1000 = 0x48585832 |
+| Enqueue staged job (write bit 0) | 0x604 | 0x1004 |
+| Staged nonce, low/high | 0x608 / 0x60c | 0x1008 / 0x100c |
+| Staged exclusive target, low/high | 0x610 / 0x614 | 0x1010 / 0x1014 |
+| Staged count (u32) | 0x618 | 0x1018 |
+| Status flags | 0x61c | 0x101c |
+| Head completion attempts | 0x620 | 0x1020 |
+| Head completion winning nonce, low/high | 0x624 / 0x628 | 0x1024 / 0x1028 |
+| Head completion digest | 0x62c..0x630 (64 bits) | 0x102c..0x1048 (256 bits) |
+| Physical lane count (read-only) | 0x634 | 0x104c |
+| Head completion tag | 0x638 | 0x1050 |
+| Pop head completion (write bit 0) | 0x63c | 0x1054 |
+| Pending command/completion counts | 0x640 | 0x1058 |
+| Staged 32-bit command tag | 0x644 | 0x105c |
+| Queue depth (read-only) | 0x648 | 0x1060 |
+| Sticky error register / write-1-to-clear | 0x64c | 0x1064 |
 | Instruction program | 0x800..0x9fc (128×32-bit) | 0x4000..0x4ffc (1024×32-bit) |
 | Seed-derived key words | 0xa00..0xa0c (4×32-bit) | 0x5000..0x501c (8×32-bit) |
 
-HashWX instructions: 16 bits (opcode [15:12], dst [11:9], src [8:6], imm [5:0]); RMCG has implicit register 8.
-HashX instructions: 64 bits (opcode [63:60], dst [59:57], src [56:54], shift [53:48], signed immediate/branch mask [31:0]); least-significant 32-bit word loaded first.
+Status flags: bit 0 = not idle (including unread results); bit 1 = a
+completion is available; bit 2 = head result found; bit 3 = command FIFO
+can accept a job; bit 4 = sticky enqueue overflow; bit 5 = sticky program
+write rejection. FIFO count register packs completion count in upper 16
+bits and waiting command count in lower 16 bits; the executing job is not
+counted as pending. Error register bits 0 and 1 mirror overflow and
+rejected program writes; write 1 to acknowledge the corresponding bit.
 
-Configuration writes are only accepted when idle; writes while busy are ignored, not AXI-rejected. The original AWS example 0x500/0x504 registers remain in place.
+The head completion is stable until popped, including the full HashX
+256-bit digest. Enqueueing when full is rejected and flagged; the host
+must check bit 3 before enqueuing. Full completion FIFO backpressure
+stalls subsequent dispatch rather than losing results. Zero-count
+commands still generate zero-attempt completions. Nonce arithmetic
+wraps modulo 2^64. AWS example 0x500/0x504 registers remain untouched.
+
+HashWX instructions: 16 bits (opcode [15:12], dst [11:9],
+src [8:6], imm [5:0]); RMCG uses implicit register 8.
+HashX instructions: 64 bits (opcode [63:60], dst [59:57],
+src [56:54], shift [53:48], signed immediate / branch mask [31:0]);
+least-significant 32-bit word loaded first.
 
 ## Rust host
 
@@ -134,14 +168,27 @@ On an AWS F1 host with the SDK installed and native libfpga_mgmt available:
     hashwx-f1-solve <seed_hex_64> <start_nonce> <nonce_count> <exclusive_target> [slot]
     hashx-f1-solve <seed_hex_any_even_length> <start_nonce> <nonce_count> <exclusive_target> [slot]
 
-Arguments accept decimal or 0x-prefixed hex. Host runners check expected magic, upload packed program and keys, initiate bounded scan, check returned nonce range and threshold, and compare the complete hardware digest to the portable Rust implementation. Both runners pass Rust 1.99 all-feature compile checks; AWS SDK linking/execution remains untested.
+Arguments accept decimal or 0x-prefixed hex. Nonce count is u64;
+the host partitions it into 16,384-nonce tagged commands, posts several
+ahead where the queue allows, and reads completion entries in submission
+order. It verifies all winning candidates and full digests with the CPU,
+and pops each result. After a hit it stops submitting new work but drains
+already submitted jobs, leaving the FPGA idle for the next program load.
+
+This is **MMIO-batched**, not PCIe DMA. It removes per-scan host
+synchronization, but true high-volume streaming still needs DMA into
+device-resident descriptor/result rings via the AWS shell. Both Rust host
+runners pass Rust 1.99 all-feature check and Clippy; AWS SDK native
+linking/execution remain untested.
 
 ## Required next work
 
 1. Run full XCVU9P Vivado synthesis, placement and routing to verify exact
 BRAM/DSP placement, critical paths, timing closure and power. Yosys UltraScale+
 mapping already passes; actual Vivado is not installed.
-2. Increase/optimize lane counts from the current four-per-algorithm default, profile per-lane critical paths, add batched descriptor dispatch and DMA result queues. Current MMIO still only schedules one batch of up to 2^32-1 hashes at a time.
+2. Increase/optimize lane counts beyond the four-per-algorithm default;
+profile per-lane critical paths and replace the four-entry BAR0 FIFOs with
+AWS shell PCIe DMA-backed descriptor/result rings for bulk operation.
 3. Run F1 HDK full-shell compilation and generate/load an AFI on AWS.
 4. Validate actual F1 host-device latency, concurrent work, cost per hash and watts per hash against optimized CPU/GPU baselines.
 5. Extend the differential corpus after memory banking, multiplier pipelining and multi-lane changes.

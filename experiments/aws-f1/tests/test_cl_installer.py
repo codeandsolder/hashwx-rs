@@ -28,6 +28,7 @@ FILES = (
     "hashx_scan.sv",
     "hashx_mmio.sv",
     "hash_parallel_scan.sv",
+    "hash_job_queue.sv",
     "hash_f1_dual.sv",
 )
 
@@ -66,7 +67,7 @@ def main() -> None:
         repeated = subprocess.run(command, capture_output=True, text=True)
         assert repeated.returncode != 0
         assert "refusing overwrite" in repeated.stderr + repeated.stdout
-    print("PASS real AWS F1 v1.4.25 CL generator, eight modules, no source mutation")
+    print("PASS real AWS F1 v1.4.25 CL generator, nine modules, no source mutation")
 
 
 if __name__ == "__main__":

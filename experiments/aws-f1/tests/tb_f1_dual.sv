@@ -31,8 +31,8 @@ module tb_f1_dual;
         $readmemh("tests/fixtures/hashx_golden_00.hex",hx_golden);
         repeat(3) @(negedge clk);
         rst=0;
-        peek(32'h600,32'h48585731);
-        peek(32'h1000,32'h48585831);
+        peek(32'h600,32'h48585732);
+        peek(32'h1000,32'h48585832);
         peek(32'h634,4);
         peek(32'h104c,4);
         for (int i=0;i<132;i++) poke(32'h800+i*4,wx_cfg[i]);
@@ -53,18 +53,22 @@ module tb_f1_dual;
         begin: both_done
             for (int i=0;i<30000;i++) begin
                 @(negedge clk);
-                if(dut.wx.scan_done && dut.hx.scan_done) disable both_done;
+                if(dut.wx.completion_valid && dut.hx.completion_valid) disable both_done;
             end
             $fatal(1,"dual concurrent scan timed out");
         end
-        peek(32'h61c,6);
-        peek(32'h101c,6);
+        peek(32'h61c,15);
+        peek(32'h101c,15);
         peek(32'h620,1);
         peek(32'h1020,1);
         peek(32'h62c,wx_golden[0][31:0]);
         peek(32'h630,wx_golden[0][63:32]);
         for(int i=0;i<8;i++) peek(32'h102c+i*4,hx_golden[0][i*32 +: 32]);
-        $display("PASS dual independent HashX/HashWX F1 BAR0 dispatch with concurrent scans");
+        poke(32'h63c,1);
+        poke(32'h1054,1);
+        peek(32'h61c,8);
+        peek(32'h101c,8);
+        $display("PASS dual independent HashX/HashWX F1 BAR0 dispatch with concurrent queue completions");
         $finish;
     end
 endmodule

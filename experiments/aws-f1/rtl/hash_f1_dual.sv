@@ -23,7 +23,7 @@ module hash_f1_dual #(
     );
 
     always_comb begin
-        if (rd_addr >= 32'h1000 && rd_addr < 32'h1050)
+        if (rd_addr >= 32'h1000 && rd_addr < 32'h1068)
             rd_value = hashx_read_data;
         else
             rd_value = hashwx_read_data;
