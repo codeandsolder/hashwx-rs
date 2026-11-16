@@ -62,5 +62,10 @@ fn generated_program_invariants_hold_across_corpus() {
                 program_index == hashwx::PROGRAM_COUNT - 1
             );
         }
+        // Exercise the snapshot cursor and scratchpad bounds for each IR corpus.
+        let portable = hashwx::HashWx::interpret_program(&set);
+        for nonce in [0, seed_index, u64::MAX] {
+            std::hint::black_box(portable.hash(nonce));
+        }
     }
 }

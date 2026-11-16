@@ -186,16 +186,13 @@ impl<'r, R: Rng> Generator<'r, R> {
 
     /// Generate an entire program.
     ///
-    /// Generates instructions into a provided [`Vec`] until the generator
+    /// Generates instructions into an owned [`Vec`] until the generator
     /// state can't be advanced any further. Runs the whole-program validator.
     /// Returns with [`HashXError::ProgramConstraints`] if the program fails these
     /// checks. This happens in normal use on a small fraction of seed values.
     #[inline]
-    pub(crate) fn generate_program(
-        &mut self,
-        output: &mut InstructionVec,
-    ) -> Result<(), HashXError> {
-        assert_eq!(output.len(), 0);
+    pub(crate) fn generate_program(&mut self) -> Result<InstructionVec, HashXError> {
+        let mut output = InstructionVec::with_capacity(NUM_INSTRUCTIONS);
         while output.len() < NUM_INSTRUCTIONS {
             match self.generate_instruction() {
                 Err(()) => break,
@@ -209,8 +206,9 @@ impl<'r, R: Rng> Generator<'r, R> {
             }
         }
         self.validator
-            .check_whole_program(&self.scheduler, output)
-            .map_err(|()| HashXError::ProgramConstraints)
+            .check_whole_program(&self.scheduler, &output)
+            .map_err(|()| HashXError::ProgramConstraints)?;
+        Ok(output)
     }
 
     /// Generate the next instruction.

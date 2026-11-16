@@ -216,8 +216,7 @@ impl Program {
     /// will happen once per several thousand random seeds, and the caller
     /// should skip to another seed.
     pub(crate) fn generate<T: Rng>(rng: &mut T) -> Result<Self, HashXError> {
-        let mut instructions = Vec::with_capacity(NUM_INSTRUCTIONS);
-        Generator::new(rng).generate_program(&mut instructions)?;
+        let instructions = Generator::new(rng).generate_program()?;
         let boxed: Box<[Instruction]> = instructions.into_boxed_slice();
         let program: Box<InstructionArray> = boxed
             .try_into()
