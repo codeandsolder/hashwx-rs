@@ -11,7 +11,7 @@
 //! Generating correct `HashX` output depends on applying exactly the right
 //! constraints.
 
-use crate::hashx::program::{Instruction, InstructionVec, Opcode};
+use crate::hashx::program::{Instruction, Opcode};
 use crate::hashx::register::{NUM_REGISTERS, RegisterId, RegisterSet};
 use crate::hashx::scheduler::Scheduler;
 
@@ -223,7 +223,7 @@ impl Validator {
     pub(crate) fn check_whole_program(
         &self,
         scheduler: &Scheduler,
-        instructions: &InstructionVec,
+        instructions: &[Instruction],
     ) -> Result<(), ()> {
         if instructions.len() == model::REQUIRED_INSTRUCTIONS
             && scheduler.overall_latency().as_usize() == model::REQUIRED_OVERALL_RESULT_AT_CYCLE

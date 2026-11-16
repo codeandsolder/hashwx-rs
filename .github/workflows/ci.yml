@@ -35,7 +35,7 @@ jobs:
   verify:
     uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@eb617b2eb5829b781ffd39ad426cae2e6d8ec842 # main
     with:
-      rust-toolchain: "1.99.1"
+      rust-toolchain: "1.100.0"
       rust-components: "clippy rustfmt"
       command: >-
         cargo fmt --check &&
@@ -66,7 +66,7 @@ jobs:
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@eb617b2eb5829b781ffd39ad426cae2e6d8ec842 # main
     with:
-      rust-toolchain: "1.99.1"
+      rust-toolchain: "1.100.0"
       rust-components: "clippy"
       rust-targets: "aarch64-unknown-linux-musl"
       rustflags: ""
@@ -74,7 +74,7 @@ jobs:
         cargo clippy --locked --target aarch64-unknown-linux-musl --all-features -- -D warnings &&
         cargo check --locked --target aarch64-unknown-linux-musl --all-features &&
         (command -v qemu-aarch64 >/dev/null || (sudo apt-get update && sudo apt-get install -y qemu-user)) &&
-        sysroot="$(rustc +1.99.1 --print sysroot)" &&
+        sysroot="$(rustc +1.100.0 --print sysroot)" &&
         env CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUNNER=qemu-aarch64
         CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="$sysroot/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld"
         CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-C linker-flavor=ld.lld"
@@ -84,7 +84,7 @@ jobs:
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@eb617b2eb5829b781ffd39ad426cae2e6d8ec842 # main
     with:
-      rust-toolchain: "1.99.1"
+      rust-toolchain: "1.100.0"
       rust-components: "clippy"
       rust-targets: "armv7-unknown-linux-musleabihf"
       rustflags: ""
@@ -92,7 +92,7 @@ jobs:
         cargo clippy --locked --target armv7-unknown-linux-musleabihf --all-features -- -D warnings &&
         cargo check --locked --target armv7-unknown-linux-musleabihf --all-features &&
         (command -v qemu-arm >/dev/null || (sudo apt-get update && sudo apt-get install -y qemu-user)) &&
-        sysroot="$(rustc +1.99.1 --print sysroot)" &&
+        sysroot="$(rustc +1.100.0 --print sysroot)" &&
         env CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_RUNNER=qemu-arm
         CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_LINKER="$sysroot/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld"
         CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_RUSTFLAGS="-C linker-flavor=ld.lld"
@@ -102,7 +102,7 @@ jobs:
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@eb617b2eb5829b781ffd39ad426cae2e6d8ec842 # main
     with:
-      rust-toolchain: "1.99.1"
+      rust-toolchain: "1.100.0"
       rustflags: ""
       timeout-minutes: 30
       command: .github/scripts/perf-gate.sh
@@ -112,7 +112,7 @@ jobs:
     uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@eb617b2eb5829b781ffd39ad426cae2e6d8ec842 # main
     with:
       runner: macos-15
-      rust-toolchain: "1.99.1"
+      rust-toolchain: "1.100.0"
       rust-components: "clippy"
       rustflags: ""
       timeout-minutes: 45
@@ -122,15 +122,15 @@ jobs:
         test "$(uname -m)" = arm64
         sysctl -n machdep.cpu.brand_string || true
         command -v cmake >/dev/null || HOMEBREW_NO_AUTO_UPDATE=1 brew install cmake
-        cargo +1.99.1 clippy --locked --all-targets --all-features -- -D warnings
-        cargo +1.99.1 test --locked --release --all-features
+        cargo +1.100.0 clippy --locked --all-targets --all-features -- -D warnings
+        cargo +1.100.0 test --locked --release --all-features
         .github/scripts/perf-gate.sh
 
   windows-x86-cross:
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@eb617b2eb5829b781ffd39ad426cae2e6d8ec842 # main
     with:
-      rust-toolchain: "1.99.1"
+      rust-toolchain: "1.100.0"
       rust-targets: "x86_64-pc-windows-gnu"
       rustflags: ""
       command: cargo check --locked --target x86_64-pc-windows-gnu --all-features

@@ -52,6 +52,8 @@ impl Compiled {
             .finalize()
             .map_err(|_| CompileError("failed to finalize AArch64 code".into()))?;
         let code_len = b.len();
+        // SAFETY: entry points to the emitted function with the exact C ABI,
+        // and the executable buffer remains owned by Self for the pointer's lifetime.
         let function: HashFn = unsafe { core::mem::transmute(b.ptr(entry)) };
         Ok(Self {
             _buffer: b,
@@ -64,6 +66,9 @@ impl Compiled {
     #[inline]
     pub(crate) fn hash(&self, nonce: u64) -> u64 {
         let mut state = initialize(self.hash_key, nonce);
+        // SAFETY: the JIT was emitted for the C ABI and the executable buffer
+        // remains alive in self; state points to nine initialized u64 words
+        // accessible for the duration of the generated function.
         unsafe { (self.function)(state.as_mut_ptr()) };
         finalize(&state)
     }

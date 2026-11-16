@@ -57,9 +57,7 @@ impl<'a, T: Rng> RngBuffer<'a, T> {
     /// requests 64 bits from the [`Rng`] and saves half for later.
     #[inline]
     pub(crate) fn next_u32(&mut self) -> u32 {
-        let previous = self.u32_opt;
-        if let Some(value) = previous {
-            self.u32_opt = None;
+        if let Some(value) = self.u32_opt.take() {
             value
         } else {
             let bytes = self.inner.next_u64().to_le_bytes();
@@ -126,7 +124,7 @@ impl TryRng for SipRand {
     /// Generate a full 64-bit random result using SipHash1,3.
     fn try_next_u64(&mut self) -> Result<u64, Infallible> {
         let value = siphash13_ctr(self.key, self.counter);
-        self.counter += 1;
+        self.counter = self.counter.wrapping_add(1);
         Ok(value)
     }
 
@@ -139,5 +137,19 @@ impl TryRng for SipRand {
     /// Fill `dest` with random data.
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Infallible> {
         rand_core::utils::fill_bytes_via_next_word(dest, || Ok::<u64, Infallible>(self.next_u64()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn siprand_counter_wraps() {
+        let key = SipState::new(0, 1, 2, 3);
+        let mut rng = SipRand::new_with_counter(key, u64::MAX);
+        assert_eq!(rng.next_u64(), siphash13_ctr(key, u64::MAX));
+        assert_eq!(rng.next_u64(), siphash13_ctr(key, 0));
+        assert_eq!(rng.next_u64(), siphash13_ctr(key, 1));
     }
 }
