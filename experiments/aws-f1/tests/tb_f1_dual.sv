@@ -3,7 +3,7 @@ module tb_f1_dual;
     logic clk=0, rst=1, wr_en=0;
     logic [31:0] wr_addr=0,wr_data=0,rd_addr=0;
     wire [31:0] combined_read;
-    logic [31:0] wx_cfg[0:131],hx_cfg[0:1031];
+    logic [31:0] wx_cfg[0:131],hx_cfg[0:1032];
     logic [63:0] wx_golden[0:2];
     logic [255:0] hx_golden[0:2];
     hash_f1_dual dut(
@@ -36,7 +36,7 @@ module tb_f1_dual;
         peek(32'h634,4);
         peek(32'h104c,4);
         for (int i=0;i<132;i++) poke(32'h800+i*4,wx_cfg[i]);
-        for (int i=0;i<1032;i++) poke(32'h4000+i*4,hx_cfg[i]);
+        for (int i=0;i<1033;i++) poke(32'h4000+i*4,hx_cfg[i]);
         // Same requested nonce and a guaranteed early win for both.
         poke(32'h608,0);
         poke(32'h60c,0);

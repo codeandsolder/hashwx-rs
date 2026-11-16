@@ -26,7 +26,7 @@ module tb_pcim_dma;
     localparam logic [63:0] RES_BASE=64'h0000_5678_0000_0000;
     logic [511:0] descriptor_mem[0:15];
     logic [511:0] completion_mem[0:15];
-    logic [31:0] wx_cfg[0:131],hx_cfg[0:1031];
+    logic [31:0] wx_cfg[0:131],hx_cfg[0:1032];
     logic [63:0] wx_gold[0:2];
     logic [255:0] hx_gold[0:2];
     logic read_pending=0,write_pending=0;
@@ -115,7 +115,7 @@ module tb_pcim_dma;
         end
         repeat(3) @(negedge clk);rst=0;
         for(integer i=0;i<132;i++) poke(32'h800+32'(i*4),wx_cfg[i]);
-        for(integer i=0;i<1032;i++) poke(32'h4000+32'(i*4),hx_cfg[i]);
+        for(integer i=0;i<1033;i++) poke(32'h4000+32'(i*4),hx_cfg[i]);
 
         make_desc(0,10,0,2,0,0);
         make_desc(1,20,1,2,0,0);

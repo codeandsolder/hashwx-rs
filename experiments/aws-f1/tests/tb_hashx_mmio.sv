@@ -2,7 +2,7 @@ module tb_hashx_mmio;
     logic clk=0, rst=1, wr_en=0;
     logic [31:0] wr_addr=0,wr_data=0,rd_addr=0;
     wire [31:0] rd_value;
-    logic [31:0] cfg[0:1031];
+    logic [31:0] cfg[0:1032];
     logic [255:0] gold[0:2];
     hashx_mmio dut(
         .clk(clk), .rst(rst), .wr_en(wr_en),
@@ -34,7 +34,7 @@ module tb_hashx_mmio;
         repeat(3) @(negedge clk);
         rst=0;
         peek(32'h1000,32'h48585832);
-        for (int i=0;i<1032;i++) poke(32'h4000+i*4,cfg[i]);
+        for (int i=0;i<1033;i++) poke(32'h4000+i*4,cfg[i]);
         poke(32'h1008,0);
         poke(32'h100c,0);
         poke(32'h1010,gold[0][31:0]+1'b1);

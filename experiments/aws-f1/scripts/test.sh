@@ -49,8 +49,8 @@ vvp=/home/jan/tools/iverilog-install/bin/vvp
 # Re-run all 108 full-digest oracle cases with each multiplication topology
 # so future fixes cannot accidentally be correct only for the default.
 for mul in 1 2 4 8 16; do
-    "$iverilog" -g2012 -s tb_hashx         -Ptb_hashx.MUL_PARTIALS="$mul" -Ptb_hashx.DIRECT_MUL=0         -Ptb_hashx.DUAL_ISSUE=0 -o "$out/hashx-mul-$mul.vvp"         rtl/hashx_core.sv tests/tb_hashx.sv
+    "$iverilog" -g2012 -s tb_hashx         -Ptb_hashx.MUL_PARTIALS="$mul" -Ptb_hashx.DIRECT_MUL=0         -o "$out/hashx-mul-$mul.vvp"         rtl/hashx_core.sv tests/tb_hashx.sv
     "$vvp" "$out/hashx-mul-$mul.vvp"
 done
-"$iverilog" -g2012 -s tb_hashx -Ptb_hashx.DIRECT_MUL=1     -Ptb_hashx.DUAL_ISSUE=0 -o "$out/hashx-direct.vvp"     rtl/hashx_core.sv tests/tb_hashx.sv
+"$iverilog" -g2012 -s tb_hashx -Ptb_hashx.DIRECT_MUL=1     -o "$out/hashx-direct.vvp"     rtl/hashx_core.sv tests/tb_hashx.sv
 "$vvp" "$out/hashx-direct.vvp"

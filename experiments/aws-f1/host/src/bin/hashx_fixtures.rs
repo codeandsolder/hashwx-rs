@@ -90,8 +90,29 @@ mod tests {
                 continue;
             };
             let packed = encode_hashx(&program);
-            for (i, inst) in program.instructions().iter().enumerate() {
+            let packed_len = usize::try_from(packed[1032]).unwrap();
+            assert!((1..=512).contains(&packed_len));
+            let mut expanded = Vec::with_capacity(program.instructions().len());
+            for i in 0..packed_len {
                 let raw = u64::from(packed[i * 2]) | (u64::from(packed[i * 2 + 1]) << 32);
+                let opcode = raw >> 60;
+                if (11..=13).contains(&opcode) {
+                    // Reconstruct the exact two original IR words, not just
+                    // their hashes, to verify host compaction semantics.
+                    let first = ((opcode - 11) << 60) | (raw & (0x3fu64 << 54));
+                    let second = (((raw >> 50) & 15) << 60)
+                        | (((raw >> 47) & 7) << 57)
+                        | (((raw >> 44) & 7) << 54)
+                        | (((raw >> 38) & 63) << 48)
+                        | ((raw >> 6) & 0xffff_ffff);
+                    expanded.push(first);
+                    expanded.push(second);
+                } else {
+                    expanded.push(raw);
+                }
+            }
+            assert_eq!(expanded.len(), program.instructions().len());
+            for (inst, raw) in program.instructions().iter().zip(expanded) {
                 let op = (raw >> 60) & 15;
                 let dst = (raw >> 57) & 7;
                 let src = (raw >> 54) & 7;
@@ -132,6 +153,8 @@ mod tests {
                     Instruction::Branch { mask } => assert_eq!((op, imm), (10, *mask)),
                 }
             }
+            // Program memory is compact, but register keys retain their
+            // fixed configuration addresses.
             for (i, k) in program.register_key().iter().enumerate() {
                 assert_eq!(
                     u64::from(packed[1024 + i * 2]) | (u64::from(packed[1025 + i * 2]) << 32),

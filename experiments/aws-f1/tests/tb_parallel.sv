@@ -16,7 +16,7 @@ module tb_parallel;
     wire [255:0] winner_digest_hx;
     logic [63:0] wx_golden[0:63], wx_wrap[0:3], wx_seed1[0:2];
     logic [255:0] hx_golden[0:63], hx_wrap[0:3], hx_seed1[0:2];
-    logic [31:0] wx_cfg[0:131], hx_cfg[0:1031];
+    logic [31:0] wx_cfg[0:131], hx_cfg[0:1032];
     integer wx_checks=0, hx_checks=0;
     hashwx_scan #(.LANES(LANES)) wx(
         .clk(clk), .rst(rst),
@@ -49,7 +49,7 @@ module tb_parallel;
     endtask
     task automatic load_hx(input integer index);
         $readmemh($sformatf("tests/fixtures/hashx_config_%02d.hex",index),hx_cfg);
-        for(integer k=0;k<1032;k++) begin
+        for(integer k=0;k<1033;k++) begin
             @(negedge clk);
             cfg_we_hx=1;
             cfg_addr_hx=k[10:0];

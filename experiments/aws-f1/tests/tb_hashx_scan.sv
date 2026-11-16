@@ -10,7 +10,7 @@ module tb_hashx_scan;
     wire [31:0] attempts;
     wire [63:0] winner_nonce;
     wire [255:0] winner_digest;
-    logic [31:0] cfg [0:1031];
+    logic [31:0] cfg [0:1032];
     logic [255:0] golden [0:2];
     hashx_scan dut(.*);
     always #5 clk=~clk;
@@ -60,7 +60,7 @@ module tb_hashx_scan;
         $readmemh("tests/fixtures/hashx_golden_00.hex",golden);
         repeat(3) @(negedge clk);
         rst=0;
-        for (int i=0;i<1032;i++) write_cfg(i,cfg[i]);
+        for (int i=0;i<1033;i++) write_cfg(i,cfg[i]);
         if (!(golden[1][63:0] < golden[0][63:0]))
             $fatal(1, "invalid differential fixture: nonce1 must hash below nonce0");
         check_scan(3,0,0,0,3);

@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 module hashx_core #(
     parameter integer MUL_PARTIALS = 4,
-    parameter bit DIRECT_MUL = 1'b1,
-    parameter bit DUAL_ISSUE = 1'b1
+    parameter bit DIRECT_MUL = 1'b1
 ) (
     input logic clk, rst,
     input logic cfg_we,
@@ -18,10 +17,9 @@ module hashx_core #(
     // Instruction [63:60] opcode, [59:57] dst, [56:54] src,
     // [53:48] shift, [31:0] signed immediate or branch mask.
     logic [63:0] microcode [0:511];
-    // A separately addressed copy preserves single-read-port BRAM
-    // mapping rather than turning the program store into 512x64 LUTRAM
-    // when dual issue reads PC and PC+1 concurrently.
-    logic [63:0] microcode_next [0:511];
+    // One program-memory read serves normal and statically fused micro-ops.
+    // Host encodes independent multiply+ALU pairs into opcodes 11-13.
+    logic [9:0] program_len;
     logic [63:0] key [0:3];
     logic [63:0] regs [0:7];
     logic [255:0] sip_state;
@@ -78,33 +76,29 @@ module hashx_core #(
         direct_product[127:64] - (x[63] ? y : 64'd0)
                                - (y[63] ? x : 64'd0);
 
-    // Two-issue fusion is valid only for a multiplication followed
-    // immediately by a cheap, independent register ALU instruction.
-    // We decode BOTH instructions from the uploaded microcode; nothing
-    // about a particular generated program is baked into the hardware.
-    // An exact dependency/WAW check guarantees the same state as two
-    // sequential instructions, including after taken branches.
-    wire [8:0] next_pc = pc[8:0] + 9'd1;
-    wire [63:0] next_instr = microcode_next[next_pc];
-    wire [3:0] next_opcode = next_instr[63:60];
-    wire [2:0] next_dst = next_instr[59:57];
-    wire [2:0] next_src = next_instr[56:54];
-    wire [5:0] next_shamt = next_instr[53:48];
-    wire [63:0] next_imm = {{32{next_instr[31]}},next_instr[31:0]};
-    wire [63:0] next_x = regs[next_dst], next_y = regs[next_src];
-    wire next_uses_src = next_opcode == 3 || next_opcode == 5 ||
-                         next_opcode == 6;
-    wire fusion = DIRECT_MUL && DUAL_ISSUE && pc != 511 &&
-                  opcode <= 2 && next_opcode >= 3 && next_opcode <= 8 &&
-                  dst != next_dst &&
-                  !(next_uses_src && next_src == dst);
+    // Compact fused multiply/ALU opcodes 11,12,13 encode respectively
+    // MUL, UMULH, SMULH followed by one independent op 3..8.
+    // Static host fusion performs all RAW and WAW dependency checks.
+    wire fusion = opcode >= 11 && opcode <= 13;
+    wire mul_opcode_valid = opcode <= 2 || fusion;
+    wire [1:0] mul_kind = fusion ? 2'(opcode - 4'd11) : opcode[1:0];
+    wire [3:0] next_opcode = instr[53:50];
+    wire [2:0] next_dst = instr[49:47];
+    wire [2:0] next_src = instr[46:44];
+    wire [5:0] next_shamt = instr[43:38];
+    wire at_end = pc == program_len - 10'd1;
     // One 64-bit ALU serves scalar instructions and the second
     // independently paired instruction. This avoids duplicating add,
     // subtract, variable shifts and rotate networks for dual issue.
     wire [3:0] alu_op = fusion ? next_opcode : opcode;
-    wire [63:0] alu_x = fusion ? next_x : x;
-    wire [63:0] alu_y = fusion ? next_y : y;
-    wire [63:0] alu_imm = fusion ? next_imm : imm;
+    // Select register ADDRESSES before the register-file read muxes.
+    // This avoids reading both candidate register pairs then muxing
+    // two 64-bit operands after the read.
+    wire [2:0] alu_dst = fusion ? next_dst : dst;
+    wire [2:0] alu_src = fusion ? next_src : src;
+    wire [63:0] alu_x = regs[alu_dst], alu_y = regs[alu_src];
+    wire [31:0] alu_imm32 = fusion ? instr[37:6] : instr[31:0];
+    wire [63:0] alu_imm = {{32{alu_imm32[31]}},alu_imm32};
     wire [5:0] alu_shamt = fusion ? next_shamt : shamt;
     logic [63:0] alu_value;
     always_comb begin
@@ -156,6 +150,7 @@ module hashx_core #(
         if (rst) begin
             state <= IDLE;
             pc <= 0;
+            program_len <= 0;
             branch_target <= 0;
             branch_used <= 0;
             mulh_result <= 0;
@@ -177,18 +172,13 @@ module hashx_core #(
         end else begin
             if (cfg_we && state == IDLE) begin
                 if (cfg_addr < 1024) begin
-                    if (!cfg_addr[0]) begin
-                        microcode[cfg_addr[9:1]][31:0] <= cfg_data;
-                        if (DUAL_ISSUE)
-                            microcode_next[cfg_addr[9:1]][31:0] <= cfg_data;
-                    end else begin
-                        microcode[cfg_addr[9:1]][63:32] <= cfg_data;
-                        if (DUAL_ISSUE)
-                            microcode_next[cfg_addr[9:1]][63:32] <= cfg_data;
-                    end
+                    if (!cfg_addr[0]) microcode[cfg_addr[9:1]][31:0] <= cfg_data;
+                    else microcode[cfg_addr[9:1]][63:32] <= cfg_data;
                 end else if (cfg_addr < 1032) begin
                     if (!cfg_addr[0]) key[cfg_addr[2:1]][31:0] <= cfg_data;
                     else key[cfg_addr[2:1]][63:32] <= cfg_data;
+                end else if (cfg_addr == 1032) begin
+                    program_len <= cfg_data[9:0];
                 end
             end
             case (state)
@@ -232,9 +222,9 @@ module hashx_core #(
                 end
                 EXEC: begin
                     case (opcode)
-                        0,1,2: begin
+                        0,1,2,11,12,13: begin
                             if (DIRECT_MUL) begin
-                                case (opcode)
+                                case (mul_kind)
                                     0: regs[dst] <= direct_product[63:0];
                                     1: begin
                                         regs[dst] <= direct_product[127:64];
@@ -246,11 +236,12 @@ module hashx_core #(
                                     end
                                     default: ;
                                 endcase
+                                if (fusion) regs[next_dst] <= alu_value;
                             end else begin
                                 mul_a <= x;
                                 mul_b <= y;
                                 mul_dst <= dst;
-                                mul_op <= opcode;
+                                mul_op <= {2'b00,mul_kind};
                                 mul_i <= 0;
                                 product_acc <= 0;
                                 state <= MUL;
@@ -264,15 +255,10 @@ module hashx_core #(
                         end
                         default: ;
                     endcase
-                    if (DIRECT_MUL || (opcode != 0 && opcode != 1 && opcode != 2)) begin
+                    if (DIRECT_MUL || !mul_opcode_valid) begin
                         if (opcode != 10 || branch_used || (mulh_result & instr[31:0]) != 0) begin
-                            if (fusion) regs[next_dst] <= alu_value;
-                            if (pc == 511 || (fusion && pc == 510))
-                                state <= FINISH_A;
-                            else begin
-                                pc <= pc + (fusion ? 10'd2 : 10'd1);
-                                state <= EXEC;
-                            end
+                            if (at_end) state <= FINISH_A;
+                            else begin pc <= pc + 10'd1; state <= EXEC; end
                         end
                     end
                 end
@@ -290,7 +276,8 @@ module hashx_core #(
                         regs[mul_dst] <= signed_high;
                         mulh_result <= signed_high[31:0];
                     end
-                    if (pc == 511) state <= FINISH_A;
+                    if (fusion) regs[next_dst] <= alu_value;
+                    if (at_end) state <= FINISH_A;
                     else begin pc <= pc + 1'b1; state <= EXEC; end
                 end
                 FINISH_A: begin

@@ -5,8 +5,7 @@ module hash_f1_dual #(
     parameter integer WX_LANES = 4,
     parameter integer HX_LANES = 4,
     parameter integer HX_MUL_PARTIALS = 4,
-    parameter bit HX_DIRECT_MUL = 1'b1,
-    parameter bit HX_DUAL_ISSUE = 1'b1
+    parameter bit HX_DIRECT_MUL = 1'b1
 ) (
     input logic clk, rst, wr_en,
     input logic [31:0] wr_addr, wr_data, rd_addr,
@@ -53,7 +52,7 @@ module hash_f1_dual #(
         .dma_config_idle(bank_idle[0])
     );
     hashx_mmio #(.LANES(HX_LANES), .MUL_PARTIALS(HX_MUL_PARTIALS),
-                  .DIRECT_MUL(HX_DIRECT_MUL), .DUAL_ISSUE(HX_DUAL_ISSUE)) hx (
+                  .DIRECT_MUL(HX_DIRECT_MUL)) hx (
         .clk(clk), .rst(rst), .wr_en(wr_en),
         .wr_addr(wr_addr), .wr_data(wr_data),
         .rd_addr(rd_addr), .rd_value(hashx_read_data),

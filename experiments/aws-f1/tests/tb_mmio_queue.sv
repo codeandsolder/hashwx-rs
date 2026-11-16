@@ -4,7 +4,7 @@ module tb_mmio_queue;
     logic clk=0,rst=1,wr_en=0;
     logic [31:0] wr_addr=0,wr_data=0,rd_addr=0;
     wire [31:0] rd_value;
-    logic [31:0] wx_cfg[0:131],hx_cfg[0:1031];
+    logic [31:0] wx_cfg[0:131],hx_cfg[0:1032];
     logic [63:0] wx_gold[0:2];
     logic [255:0] hx_gold[0:2];
     hash_f1_dual dut(
@@ -87,7 +87,7 @@ module tb_mmio_queue;
         peek(32'h600,32'h48585732);peek(32'h1000,32'h48585832);
         peek(32'h648,4);peek(32'h1060,4);
         for(integer i=0;i<132;i++)poke(32'h800+32'(i*4),wx_cfg[i]);
-        for(integer i=0;i<1032;i++)poke(32'h4000+32'(i*4),hx_cfg[i]);
+        for(integer i=0;i<1033;i++)poke(32'h4000+32'(i*4),hx_cfg[i]);
 
         // Submit three jobs per bank before waiting for any result. The
         // staged registers must be snapshotted per enqueue.
