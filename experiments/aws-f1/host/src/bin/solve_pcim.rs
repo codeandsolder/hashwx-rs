@@ -38,7 +38,9 @@ fn seed_bytes(arg: &str) -> Result<Vec<u8>, Box<dyn Error>> {
         return Err("seed hex needs an even number of digits".into());
     }
     arg.as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|b| {
             u8::from_str_radix(std::str::from_utf8(b)?, 16)
                 .map_err(|error| -> Box<dyn Error> { error.into() })

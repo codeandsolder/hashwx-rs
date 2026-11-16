@@ -101,8 +101,8 @@ impl F1Device {
         value: &[u8; SLOT_BYTES],
     ) -> Result<(), Box<dyn Error>> {
         let dst = self.slot_address(false, slot)?;
-        for (index, bytes) in value.chunks_exact(8).enumerate() {
-            let word = u64::from_le_bytes(bytes.try_into()?);
+        for (index, bytes) in value.as_chunks::<8>().0.iter().enumerate() {
+            let word = u64::from_le_bytes(*bytes);
             // SAFETY: mapped coherent PCI DMA memory, aligned u64 slot;
             // volatile prevents compiler from eliding device-visible stores.
             unsafe { std::ptr::write_volatile(dst.add(index), word.to_le()) };
@@ -113,7 +113,7 @@ impl F1Device {
     pub fn read_completion(&self, slot: u32) -> Result<[u8; SLOT_BYTES], Box<dyn Error>> {
         let src = self.slot_address(true, slot)?;
         let mut value = [0u8; SLOT_BYTES];
-        for (index, bytes) in value.chunks_exact_mut(8).enumerate() {
+        for (index, bytes) in value.as_chunks_mut::<8>().0.iter_mut().enumerate() {
             // SAFETY: completed slots are read only after the device's
             // produced counter advances and an acquire fence in pcim::progress.
             let word = unsafe { std::ptr::read_volatile(src.add(index)) };
@@ -170,9 +170,9 @@ mod tests {
     fn ioctl_codes_match_linux_generic_x86_64_uapi() {
         assert_eq!(size_of::<DeviceInfo>(), 16);
         assert_eq!(size_of::<Register>(), 8);
-        assert_eq!(GET_INFO as u64, 0x8010_4870);
-        assert_eq!(PEEK as u64, 0xc008_4871);
-        assert_eq!(POKE as u64, 0x4008_4872);
+        assert_eq!(GET_INFO, 0x8010_4870);
+        assert_eq!(PEEK, 0xc008_4871);
+        assert_eq!(POKE, 0x4008_4872);
         assert_eq!(RING_BYTES, 1024);
     }
 }
