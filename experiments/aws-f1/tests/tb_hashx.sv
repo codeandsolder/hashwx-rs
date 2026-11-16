@@ -1,4 +1,8 @@
-module tb_hashx;
+module tb_hashx #(
+    parameter integer MUL_PARTIALS = 4,
+    parameter bit DIRECT_MUL = 1'b1,
+    parameter bit DUAL_ISSUE = 1'b1
+);
     logic clk=0, rst=1, cfg_we=0, start=0;
     logic [10:0] cfg_addr=0;
     logic [31:0] cfg_data=0;
@@ -7,7 +11,7 @@ module tb_hashx;
     wire [255:0] digest;
     logic [31:0] cfg [0:1031];
     logic [255:0] golden [0:2];
-    hashx_core dut(.*);
+    hashx_core #(.MUL_PARTIALS(MUL_PARTIALS), .DIRECT_MUL(DIRECT_MUL), .DUAL_ISSUE(DUAL_ISSUE)) dut(.*);
     always #5 clk=~clk;
     task automatic write_cfg(input integer addr, input logic [31:0] value);
         @(negedge clk);

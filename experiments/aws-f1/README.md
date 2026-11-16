@@ -35,7 +35,7 @@ The script uses Rust 1.99 via rustup, managed sccache, Icarus Verilog, Verilator
 - Eight aggregate Rust PCIM/FIFO host tests cover descriptor encoding, full 256-bit completion decoding, physical ring validation, producer/ack constraints and previously established queue checks.
 - Rust host queue transport is abstracted behind a small MMIO bus trait, with mock-device unit tests independent of the AWS SDK. Coverage includes arbitrary u64-length counts, nonce overflow, multi-batch submission, draining in-flight work after a hit, tag mismatch detection, preexisting protocol errors, and zero-work requests.
 
-With one shared HashWX 64x64 multiplier and a single scratchpad BRAM read port, simulation costs on tested programs are **15,628 clocks per HashWX candidate** (previously 13,836) and **3,791–3,910 clocks per HashX candidate**. These are **not real FPGA throughput numbers**.
+With one shared HashWX 64x64 multiplier and a single scratchpad BRAM read port, simulation costs on tested programs are **15,628 clocks per HashWX candidate** (previously 13,836) and **379 clocks per HashX candidate** with the new fused, directly multiplying default (formerly 3,791–3,910). These are **not real FPGA throughput numbers**.
 
 ## Synthesized resource footprint (Yosys, UltraScale+)
 
@@ -48,19 +48,30 @@ timing closure.
 |---|---:|---:|---:|
 | HashWX, original baseline (two multipliers/two scratch read ports) | 20 | 9 | 4,504 |
 | HashWX, shared multiplier + single scratch port | 10 | 5 | 4,287 |
-| HashX, time-multiplexed 16x16 multiplier and shared SipRound | 1 | 1 | 4,820 |
+| HashX, legacy single 16x16 multiplier + shared SipRound | 1 | 1 | 4,820 |
+| HashX, parallel 16x16 multipliers, 4 products/cycle | 4 | 1 | 5,626 |
+| HashX, parallel 16x16 multipliers, 16 products/cycle | 16 | 1 | 6,093 |
+| HashX, combinational 64x64 multiplication, single issue | 19 | 1 | 5,104 |
+| **HashX, combinational multiplication + independent instruction fusion (default)** | **19** | **1** | **5,906** |
 | Combined scalar (one lane each) BAR0 wrapper + scanner/control | 11 | 6 | 10,230 |
 | Combined 4 HashWX + 4 HashX lanes with wave scheduler (before FIFO) | 44 | 24 | 37,387 |
 | Combined 4+4 lanes, four-deep command/result FIFO per algorithm | 44 | 24 | 38,325 |
-| Combined 4+4 lanes, FIFOs and connected PCIM host-memory DMA | **44** | **24** | **39,283** |
+| Combined 4+4 lanes, FIFOs and PCIM DMA, legacy 16-cycle HashX | 44 | 24 | 39,283 |
+| **Combined 4+4 lanes, FIFOs and PCIM DMA, fused HashX default** | **116** | **24** | **44,711** |
 
 Resource counts are from Yosys 0.66, synth_xilinx -family xcup, with IO pads
-and auto clock buffers disabled. The memory optimization costs one additional
-cycle per affected read. HashX additionally reuses its init SipRound for both
-final digest rounds by inserting one extra finalization cycle and keeping
-the intermediate digest in the existing state register. This reduces HashX
-from 5,006 to 4,820 estimated logic cells without changing the 256-bit hash. F1 XCVU9P-specific Vivado timing and proper
-DSP/BRAM placement are still required before predicting any hashes/second.
+and auto clock buffers disabled. The HashWX memory optimization costs one additional cycle per affected
+read. HashX shares the SipRound path across init and finalization, and now
+defaults to a direct single-cycle 64x64 multiply plus dynamic pairing of a
+multiply with its next independent nonmultiply ALU instruction. Fusion
+checks register dependencies, register write conflicts, opcode class and
+the last instruction index, so it is not specialized to a particular seed.
+One main program BRAM plus a separately addressed distributed-memory copy
+supports two concurrent reads; the latter uses **64 RAM64M8** resources in
+the single-core synthesis in addition to the estimated logic-cell figure.
+F1 XCVU9P-specific Vivado timing, routing, DSP and distributed-RAM
+placement still need to be checked. A one-cycle 64x64 combinational
+multiplier might fail the desired 125 MHz target despite passing Yosys.
 
 ## Parallel scheduling and simulated throughput
 
@@ -69,7 +80,10 @@ is uploaded once over BAR0 and broadcast into each lane's private program RAM.
 For custom builds, edit the hash_f1_dual WX_LANES and HX_LANES parameters, or
 measure alternative configurations using:
 
-    ./scripts/synth.sh 4 4
+    ./scripts/synth.sh 4 4 4 1 1
+    # args: HashWX lanes, HashX lanes, HashX 16x16 partials,
+    #       direct 64x64 multiply (1/0), pair independent instructions (1/0)
+    # e.g. compare the original one-DSP engine: ./scripts/synth.sh 4 4 1 0 0
 
 This uses a compile-time lane count; the host can discover it through read-only
 BAR0 registers 0x634 (HashWX) and 0x104c (HashX). Zero and partial waves do
@@ -80,13 +94,13 @@ counts (includes wave scheduling; no known FPGA clock frequency):
 
 | Lanes per algorithm | HashWX cycles | HashX cycles |
 |---|---:|---:|
-| 1 | 250,080 | 62,354 |
-| 2 | 125,040 | 31,296 |
-| 3 | 93,780 | 23,472 |
-| 4 | 62,520 | 15,648 |
-| 5 | 62,520 | 15,648 |
-| 7 | 46,890 | 11,736 |
-| 8 | 31,260 | 7,824 |
+| 1 | 250,080 | 6,072 |
+| 2 | 125,040 | 3,048 |
+| 3 | 93,780 | 2,286 |
+| 4 | 62,520 | 1,524 |
+| 5 | 62,520 | 1,524 |
+| 7 | 46,890 | 1,143 |
+| 8 | 31,260 | 762 |
 
 This confirms the scheduler's near-linear **simulated-cycle** scaling;
 without placement/timing, do not interpret it as an actual FPGA hash-rate or

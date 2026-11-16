@@ -1,7 +1,10 @@
 // Public HashX v1 scan interface, backed by the parameterized wave scheduler.
 // SPDX-License-Identifier: LGPL-3.0-only
 module hashx_scan #(
-    parameter integer LANES = 4
+    parameter integer LANES = 4,
+    parameter integer MUL_PARTIALS = 4,
+    parameter bit DIRECT_MUL = 1'b1,
+    parameter bit DUAL_ISSUE = 1'b1
 )(
     input logic clk, rst,
     input logic cfg_we,
@@ -15,7 +18,8 @@ module hashx_scan #(
     output logic [63:0] winner_nonce,
     output logic [255:0] winner_digest
 );
-    hash_parallel_scan #(.LANES(LANES), .IS_HASHX(1'b1), .HASH_BITS(256)) scheduler (
+    hash_parallel_scan #(.LANES(LANES), .IS_HASHX(1'b1), .HASH_BITS(256), .HX_MUL_PARTIALS(MUL_PARTIALS),
+                          .HX_DIRECT_MUL(DIRECT_MUL), .HX_DUAL_ISSUE(DUAL_ISSUE)) scheduler (
         .clk(clk), .rst(rst),
         .cfg_we(cfg_we), .cfg_addr(cfg_addr), .cfg_data(cfg_data),
         .start(start), .first_nonce(first_nonce), .target(target),

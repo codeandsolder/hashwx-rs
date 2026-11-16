@@ -1,7 +1,11 @@
 // HashX v1 execution lane; immutable generated HashXProgram configured by host.
-// Single 16x16 DSP-friendly multiplier accumulates 64x64=>128 in 16 cycles.
+// Parallel 16x16 DSP limbs; 1, 2, 4, 8, or 16 products per cycle.
 // SPDX-License-Identifier: LGPL-3.0-only
-module hashx_core(
+module hashx_core #(
+    parameter integer MUL_PARTIALS = 4,
+    parameter bit DIRECT_MUL = 1'b1,
+    parameter bit DUAL_ISSUE = 1'b1
+) (
     input logic clk, rst,
     input logic cfg_we,
     input logic [10:0] cfg_addr,
@@ -14,6 +18,10 @@ module hashx_core(
     // Instruction [63:60] opcode, [59:57] dst, [56:54] src,
     // [53:48] shift, [31:0] signed immediate or branch mask.
     logic [63:0] microcode [0:511];
+    // A separately addressed copy preserves single-read-port BRAM
+    // mapping rather than turning the program store into 512x64 LUTRAM
+    // when dual issue reads PC and PC+1 concurrently.
+    logic [63:0] microcode_next [0:511];
     logic [63:0] key [0:3];
     logic [63:0] regs [0:7];
     logic [255:0] sip_state;
@@ -60,15 +68,75 @@ module hashx_core(
     wire [5:0] shamt = instr[53:48];
     wire [63:0] imm = {{32{instr[31]}},instr[31:0]};
     wire [63:0] x = regs[dst], y = regs[src];
+    // Optional one-cycle 64x64 multiply. Only one unsigned product
+    // network is instantiated for all three multiply opcodes; signed
+    // high-half correction reuses the same combinational result.
+    // It removes the per-multiply FSM stalls, but its critical path
+    // must be verified by real FPGA timing closure before deployment.
+    wire [127:0] direct_product = x * y;
+    wire [63:0] direct_signed_high =
+        direct_product[127:64] - (x[63] ? y : 64'd0)
+                               - (y[63] ? x : 64'd0);
 
-    // One 16x16 unsigned multiplier, executed for all 16 limb pairs.
-    wire [1:0] row = mul_i[3:2];
-    wire [1:0] col = mul_i[1:0];
-    wire [15:0] limb_a = mul_a[{row,4'b0} +: 16];
-    wire [15:0] limb_b = mul_b[{col,4'b0} +: 16];
-    wire [31:0] limb_product = limb_a * limb_b;
-    wire [6:0] partial_shift = ({5'b0,row} + {5'b0,col}) << 4;
-    wire [127:0] partial = {96'b0,limb_product} << partial_shift;
+    // Two-issue fusion is valid only for a multiplication followed
+    // immediately by a cheap, independent register ALU instruction.
+    // We decode BOTH instructions from the uploaded microcode; nothing
+    // about a particular generated program is baked into the hardware.
+    // An exact dependency/WAW check guarantees the same state as two
+    // sequential instructions, including after taken branches.
+    wire [8:0] next_pc = pc[8:0] + 9'd1;
+    wire [63:0] next_instr = microcode_next[next_pc];
+    wire [3:0] next_opcode = next_instr[63:60];
+    wire [2:0] next_dst = next_instr[59:57];
+    wire [2:0] next_src = next_instr[56:54];
+    wire [5:0] next_shamt = next_instr[53:48];
+    wire [63:0] next_imm = {{32{next_instr[31]}},next_instr[31:0]};
+    wire [63:0] next_x = regs[next_dst], next_y = regs[next_src];
+    wire next_uses_src = next_opcode == 3 || next_opcode == 5 ||
+                         next_opcode == 6;
+    wire fusion = DIRECT_MUL && DUAL_ISSUE && pc != 511 &&
+                  opcode <= 2 && next_opcode >= 3 && next_opcode <= 8 &&
+                  dst != next_dst &&
+                  !(next_uses_src && next_src == dst);
+    // One 64-bit ALU serves scalar instructions and the second
+    // independently paired instruction. This avoids duplicating add,
+    // subtract, variable shifts and rotate networks for dual issue.
+    wire [3:0] alu_op = fusion ? next_opcode : opcode;
+    wire [63:0] alu_x = fusion ? next_x : x;
+    wire [63:0] alu_y = fusion ? next_y : y;
+    wire [63:0] alu_imm = fusion ? next_imm : imm;
+    wire [5:0] alu_shamt = fusion ? next_shamt : shamt;
+    logic [63:0] alu_value;
+    always_comb begin
+        case (alu_op)
+            3: alu_value = alu_x + (alu_y << alu_shamt);
+            4: alu_value = alu_x + alu_imm;
+            5: alu_value = alu_x - alu_y;
+            6: alu_value = alu_x ^ alu_y;
+            7: alu_value = alu_x ^ alu_imm;
+            8: alu_value = (alu_x >> alu_shamt) |
+                              (alu_x << (7'd64 - {1'b0,alu_shamt}));
+            default: alu_value = 0;
+        endcase
+    end
+    // All sixteen 16x16 unsigned limb products are scheduled in
+    // MUL_STEPS=16/MUL_PARTIALS groups. The balanced tree avoids an
+    // O(MUL_PARTIALS) ripple path for the partial-product reduction.
+    wire [127:0] reduce [1:2*MUL_PARTIALS-1];
+    for (genvar p = 0; p < MUL_PARTIALS; p++) begin : product
+        wire [3:0] index = 4'(mul_i * MUL_PARTIALS + p);
+        wire [15:0] a = mul_a[{index[3:2],4'b0} +: 16];
+        wire [15:0] b = mul_b[{index[1:0],4'b0} +: 16];
+        wire [31:0] ab = a * b;
+        wire [6:0] shift_bits = ({5'b0,index[3:2]} +
+                                 {5'b0,index[1:0]}) << 4;
+        assign reduce[MUL_PARTIALS+p] = {96'b0, ab} << shift_bits;
+    end
+    for (genvar p = 1; p < MUL_PARTIALS; p++) begin : tree
+        assign reduce[p] = reduce[2*p] + reduce[2*p+1];
+    end
+    wire [127:0] partial = reduce[1];
+    localparam integer MUL_STEPS = 16/MUL_PARTIALS;
     wire [63:0] signed_high = product_acc[127:64]
                    - (mul_a[63] ? mul_b : 64'd0)
                    - (mul_b[63] ? mul_a : 64'd0);
@@ -109,8 +177,15 @@ module hashx_core(
         end else begin
             if (cfg_we && state == IDLE) begin
                 if (cfg_addr < 1024) begin
-                    if (!cfg_addr[0]) microcode[cfg_addr[9:1]][31:0] <= cfg_data;
-                    else microcode[cfg_addr[9:1]][63:32] <= cfg_data;
+                    if (!cfg_addr[0]) begin
+                        microcode[cfg_addr[9:1]][31:0] <= cfg_data;
+                        if (DUAL_ISSUE)
+                            microcode_next[cfg_addr[9:1]][31:0] <= cfg_data;
+                    end else begin
+                        microcode[cfg_addr[9:1]][63:32] <= cfg_data;
+                        if (DUAL_ISSUE)
+                            microcode_next[cfg_addr[9:1]][63:32] <= cfg_data;
+                    end
                 end else if (cfg_addr < 1032) begin
                     if (!cfg_addr[0]) key[cfg_addr[2:1]][31:0] <= cfg_data;
                     else key[cfg_addr[2:1]][63:32] <= cfg_data;
@@ -158,20 +233,30 @@ module hashx_core(
                 EXEC: begin
                     case (opcode)
                         0,1,2: begin
-                            mul_a <= x;
-                            mul_b <= y;
-                            mul_dst <= dst;
-                            mul_op <= opcode;
-                            mul_i <= 0;
-                            product_acc <= 0;
-                            state <= MUL;
+                            if (DIRECT_MUL) begin
+                                case (opcode)
+                                    0: regs[dst] <= direct_product[63:0];
+                                    1: begin
+                                        regs[dst] <= direct_product[127:64];
+                                        mulh_result <= direct_product[95:64];
+                                    end
+                                    2: begin
+                                        regs[dst] <= direct_signed_high;
+                                        mulh_result <= direct_signed_high[31:0];
+                                    end
+                                    default: ;
+                                endcase
+                            end else begin
+                                mul_a <= x;
+                                mul_b <= y;
+                                mul_dst <= dst;
+                                mul_op <= opcode;
+                                mul_i <= 0;
+                                product_acc <= 0;
+                                state <= MUL;
+                            end
                         end
-                        3: regs[dst] <= x + (y << shamt);
-                        4: regs[dst] <= x + imm;
-                        5: regs[dst] <= x - y;
-                        6: regs[dst] <= x ^ y;
-                        7: regs[dst] <= x ^ imm;
-                        8: regs[dst] <= (x >> shamt) | (x << (7'd64 - {1'b0,shamt}));
+                        3,4,5,6,7,8: regs[dst] <= alu_value;
                         9: branch_target <= pc;
                         10: if (!branch_used && (mulh_result & instr[31:0]) == 0) begin
                             pc <= branch_target;
@@ -179,16 +264,21 @@ module hashx_core(
                         end
                         default: ;
                     endcase
-                    if (opcode != 0 && opcode != 1 && opcode != 2) begin
+                    if (DIRECT_MUL || (opcode != 0 && opcode != 1 && opcode != 2)) begin
                         if (opcode != 10 || branch_used || (mulh_result & instr[31:0]) != 0) begin
-                            if (pc == 511) state <= FINISH_A;
-                            else begin pc <= pc + 1'b1; state <= EXEC; end
+                            if (fusion) regs[next_dst] <= alu_value;
+                            if (pc == 511 || (fusion && pc == 510))
+                                state <= FINISH_A;
+                            else begin
+                                pc <= pc + (fusion ? 10'd2 : 10'd1);
+                                state <= EXEC;
+                            end
                         end
                     end
                 end
                 MUL: begin
                     product_acc <= product_acc + partial;
-                    if (mul_i == 15) state <= MUL_DONE;
+                    if (mul_i == 4'(MUL_STEPS-1)) state <= MUL_DONE;
                     else mul_i <= mul_i + 1'b1;
                 end
                 MUL_DONE: begin

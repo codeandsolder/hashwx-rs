@@ -4,6 +4,17 @@ cd "$(dirname "$0")/.."
 src_dir="$PWD/rtl"
 wx_lanes=4
 hx_lanes=4
+mul_partials=4
+direct_mul=1
+dual_issue=1
+if [ "$#" -ge 3 ]; then mul_partials=$3; fi
+if [ "$#" -ge 4 ]; then direct_mul=$4; fi
+if [ "$#" -ge 5 ]; then dual_issue=$5; fi
+case "$direct_mul:$dual_issue" in 0:0|1:0|1:1) ;; *)
+    echo "Supported options: direct:dual=0:0,1:0,1:1" >&2
+    exit 1 ;;
+esac
+case "$mul_partials" in 1|2|4|8|16) ;; *) echo "MUL_PARTIALS must be 1,2,4,8,16" >&2; exit 1 ;; esac
 if [ "$#" -ge 1 ]; then wx_lanes=$1; fi
 if [ "$#" -ge 2 ]; then hx_lanes=$2; fi
 case "$wx_lanes:$hx_lanes" in
@@ -22,11 +33,15 @@ for block in hashx_core hashwx_core hash_f1_dual; do
             sources="$src_dir/hashwx_core.sv $src_dir/hashwx_scan.sv $src_dir/hashwx_mmio.sv $src_dir/hashx_core.sv $src_dir/hashx_scan.sv $src_dir/hashx_mmio.sv $src_dir/hash_parallel_scan.sv $src_dir/hash_job_queue.sv $src_dir/hash_pcim_dma.sv $src_dir/hash_f1_dual.sv" ;;
     esac
     if [ "$block" = hash_f1_dual ]; then
-        stem="hash_f1_dual-$wx_lanes-wx-$hx_lanes-hx"
-        config="chparam -set WX_LANES $wx_lanes -set HX_LANES $hx_lanes hash_f1_dual;"
+        stem="hash_f1_dual-$wx_lanes-wx-$hx_lanes-hx-$mul_partials-mul-$direct_mul-direct-$dual_issue-dual"
+        config="chparam -set WX_LANES $wx_lanes -set HX_LANES $hx_lanes -set HX_MUL_PARTIALS $mul_partials -set HX_DIRECT_MUL $direct_mul -set HX_DUAL_ISSUE $dual_issue hash_f1_dual;"
     else
         stem="$block"
         config=""
+        if [ "$block" = hashx_core ]; then
+            stem="hashx_core-$mul_partials-mul-$direct_mul-direct-$dual_issue-dual"
+            config="chparam -set MUL_PARTIALS $mul_partials -set DIRECT_MUL $direct_mul -set DUAL_ISSUE $dual_issue hashx_core;"
+        fi
     fi
     echo "Synthesizing $stem for UltraScale+..."
     yosys -Q -T -l "$out/$stem-xcup.log" \

@@ -6,6 +6,9 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 module hash_parallel_scan #(
     parameter integer LANES = 4,
+    parameter integer HX_MUL_PARTIALS = 4,
+    parameter bit HX_DIRECT_MUL = 1'b1,
+    parameter bit HX_DUAL_ISSUE = 1'b1,
     parameter bit IS_HASHX = 1'b0,
     parameter integer HASH_BITS = IS_HASHX ? 256 : 64
 )(
@@ -44,7 +47,9 @@ module hash_parallel_scan #(
         assign lane_valid[i] = remaining > LANE_INDEX;
 
         if (IS_HASHX) begin : x
-            hashx_core core(
+            hashx_core #(.MUL_PARTIALS(HX_MUL_PARTIALS),
+                           .DIRECT_MUL(HX_DIRECT_MUL),
+                           .DUAL_ISSUE(HX_DUAL_ISSUE)) core(
                 .clk(clk), .rst(rst),
                 .cfg_we(cfg_we && !busy), .cfg_addr(cfg_addr),
                 .cfg_data(cfg_data), .start(lane_start),

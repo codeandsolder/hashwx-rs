@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 module hashx_mmio #(
     parameter integer LANES = 4,
+    parameter integer MUL_PARTIALS = 4,
+    parameter bit DIRECT_MUL = 1'b1,
+    parameter bit DUAL_ISSUE = 1'b1,
     parameter integer QUEUE_DEPTH = 4
 )(
     input logic clk, rst, wr_en,
@@ -45,7 +48,8 @@ module hashx_mmio #(
         wr_addr < 32'h5020 && wr_addr[1:0] == 0;
     wire cfg_we = config_write && queue_idle && !dma_active;
 
-    hashx_scan #(.LANES(LANES)) scanner(
+    hashx_scan #(.LANES(LANES), .MUL_PARTIALS(MUL_PARTIALS),
+                 .DIRECT_MUL(DIRECT_MUL), .DUAL_ISSUE(DUAL_ISSUE)) scanner(
         .clk(clk), .rst(rst),
         .cfg_we(cfg_we), .cfg_addr(wr_addr[12:2]), .cfg_data(wr_data),
         .start(scanner_start), .first_nonce(scanner_nonce),
