@@ -2,6 +2,7 @@
 // seed broadcast/reconfiguration, nonce wraparound, and actual-work accounting.
 module tb_parallel;
     parameter integer LANES = 4;
+    parameter bit PIPE_MUL = 1'b0;
     logic clk=0, rst=1;
     logic cfg_we_wx=0, cfg_we_hx=0, start_wx=0, start_hx=0;
     logic [7:0] cfg_addr_wx=0;
@@ -26,7 +27,7 @@ module tb_parallel;
         .found(found_wx), .attempts(attempts_wx),
         .winner_nonce(winner_nonce_wx), .winner_hash(winner_hash_wx)
     );
-    hashx_scan #(.LANES(LANES)) hx(
+    hashx_scan #(.LANES(LANES), .PIPE_MUL(PIPE_MUL)) hx(
         .clk(clk), .rst(rst),
         .cfg_we(cfg_we_hx), .cfg_addr(cfg_addr_hx), .cfg_data(cfg_data_hx),
         .start(start_hx), .first_nonce(nonce_hx), .target(target_hx),

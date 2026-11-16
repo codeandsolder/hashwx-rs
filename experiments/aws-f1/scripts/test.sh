@@ -54,3 +54,21 @@ for mul in 1 2 4 8 16; do
 done
 "$iverilog" -g2012 -s tb_hashx -Ptb_hashx.DIRECT_MUL=1     -o "$out/hashx-direct.vvp"     rtl/hashx_core.sv tests/tb_hashx.sv
 "$vvp" "$out/hashx-direct.vvp"
+# Compare 2-stage DSP partial-product pipeline against CPU oracle over
+# all generated seeds and the full 512-instruction uncompressed program.
+"$iverilog" -g2012 -s tb_hashx -Ptb_hashx.PIPE_MUL=1     -o "$out/hashx-pipe-mul.vvp" rtl/hashx_core.sv tests/tb_hashx.sv
+"$vvp" "$out/hashx-pipe-mul.vvp"
+
+
+# FPGA timing-oriented registered 32x32 partial-product multiplier:
+# full HashX oracle and multiple wave scheduler widths, including wrap.
+for lanes in 1 4 8; do
+    "$iverilog" -g2012 -s tb_parallel -Ptb_parallel.LANES="$lanes"         -Ptb_parallel.PIPE_MUL=1 -o "$out/parallel-pipe-$lanes.vvp"         rtl/*.sv tests/tb_parallel.sv
+    "$vvp" "$out/parallel-pipe-$lanes.vvp"
+done
+
+
+# Differential hazard and branch regressions for opportunistic MUL_DONE
+# ALU issue, including one/two-word programs and last-slot completion.
+"$iverilog" -g2012 -s tb_hashx_pipeline_equiv     -o "$out/hashx-pipe-equiv.vvp" rtl/hashx_core.sv     tests/tb_hashx_pipeline_equiv.sv
+"$vvp" "$out/hashx-pipe-equiv.vvp"

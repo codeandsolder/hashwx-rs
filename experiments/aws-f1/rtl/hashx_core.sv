@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 module hashx_core #(
     parameter integer MUL_PARTIALS = 4,
-    parameter bit DIRECT_MUL = 1'b1
+    parameter bit DIRECT_MUL = 1'b1,
+    parameter bit PIPE_MUL = 1'b0
 ) (
     input logic clk, rst,
     input logic cfg_we,
@@ -59,6 +60,11 @@ module hashx_core #(
         end
     endfunction
 
+    // For pipelined multiply, advance PC in EXEC so MUL_DONE reads
+    // the following instruction using the original registered PC path.
+    // This keeps the single-port block-RAM inference; an asynchronous
+    // mux in front of the read address instead maps it into distributed
+    // RAM, a very expensive substitution on UltraScale+.
     wire [63:0] instr = microcode[pc[8:0]];
     wire [3:0] opcode = instr[63:60];
     wire [2:0] dst = instr[59:57];
@@ -71,10 +77,28 @@ module hashx_core #(
     // high-half correction reuses the same combinational result.
     // It removes the per-multiply FSM stalls, but its critical path
     // must be verified by real FPGA timing closure before deployment.
+    // Optional two-stage 64x64 multiplier: compute four independent
+    // unsigned 32x32 products, register them, and combine them in
+    // MUL_DONE. Unlike the single-cycle path this doesn't put DSP
+    // multiplication AND carry-chain accumulation on one timing arc.
+    // The 64x64 unsigned product is
+    // p00 + ((p01 + p10) << 32) + (p11 << 64).
+    logic [63:0] mul_p00, mul_p01, mul_p10, mul_p11;
+    wire [63:0] pp00 = x[31:0] * y[31:0];
+    wire [63:0] pp01 = x[31:0] * y[63:32];
+    wire [63:0] pp10 = x[63:32] * y[31:0];
+    wire [63:0] pp11 = x[63:32] * y[63:32];
     wire [127:0] direct_product = x * y;
-    wire [63:0] direct_signed_high =
-        direct_product[127:64] - (x[63] ? y : 64'd0)
-                               - (y[63] ? x : 64'd0);
+    wire [63:0] direct_signed_high = direct_product[127:64]
+        - (x[63] ? y : 64'd0) - (y[63] ? x : 64'd0);
+    wire [65:0] mid = {34'd0, mul_p00[63:32]}
+                    + {2'b00, mul_p01}
+                    + {2'b00, mul_p10};
+    wire [63:0] pipe_low = {mid[31:0], mul_p00[31:0]};
+    wire [63:0] pipe_high = mul_p11 + 64'(mid[65:32]);
+    wire [63:0] pipe_signed_high = pipe_high
+        - (mul_a[63] ? mul_b : 64'd0)
+        - (mul_b[63] ? mul_a : 64'd0);
 
     // Compact fused multiply/ALU opcodes 11,12,13 encode respectively
     // MUL, UMULH, SMULH followed by one independent op 3..8.
@@ -87,6 +111,10 @@ module hashx_core #(
     wire [2:0] next_src = instr[46:44];
     wire [5:0] next_shamt = instr[43:38];
     wire at_end = pc == program_len - 10'd1;
+    wire alu_reads_src = opcode == 3 || opcode == 5 || opcode == 6;
+    wire pipe_slot = DIRECT_MUL && PIPE_MUL && state == MUL_DONE &&
+        pc < program_len && opcode >= 3 && opcode <= 8 &&
+        dst != mul_dst && !(alu_reads_src && src == mul_dst);
     // One 64-bit ALU serves scalar instructions and the second
     // independently paired instruction. This avoids duplicating add,
     // subtract, variable shifts and rotate networks for dual issue.
@@ -156,6 +184,10 @@ module hashx_core #(
             mulh_result <= 0;
             init_step <= 0;
             product_acc <= 0;
+            mul_p00 <= 0;
+            mul_p01 <= 0;
+            mul_p10 <= 0;
+            mul_p11 <= 0;
             mul_a <= 0;
             mul_b <= 0;
             mul_i <= 0;
@@ -223,7 +255,22 @@ module hashx_core #(
                 EXEC: begin
                     case (opcode)
                         0,1,2,11,12,13: begin
-                            if (DIRECT_MUL) begin
+                            if (DIRECT_MUL && PIPE_MUL) begin
+                                mul_p00 <= pp00;
+                                mul_p01 <= pp01;
+                                mul_p10 <= pp10;
+                                mul_p11 <= pp11;
+                                mul_a <= x;
+                                mul_b <= y;
+                                mul_dst <= dst;
+                                mul_op <= {2'b00,mul_kind};
+                                if (fusion) regs[next_dst] <= alu_value;
+                                // At the following edge PC is the next
+                                // instruction, or program_len when the
+                                // multiply was the final instruction.
+                                pc <= pc + 10'd1;
+                                state <= MUL_DONE;
+                            end else if (DIRECT_MUL) begin
                                 case (mul_kind)
                                     0: regs[dst] <= direct_product[63:0];
                                     1: begin
@@ -255,7 +302,7 @@ module hashx_core #(
                         end
                         default: ;
                     endcase
-                    if (DIRECT_MUL || !mul_opcode_valid) begin
+                    if ((DIRECT_MUL && !PIPE_MUL) || !mul_opcode_valid) begin
                         if (opcode != 10 || branch_used || (mulh_result & instr[31:0]) != 0) begin
                             if (at_end) state <= FINISH_A;
                             else begin pc <= pc + 10'd1; state <= EXEC; end
@@ -268,17 +315,44 @@ module hashx_core #(
                     else mul_i <= mul_i + 1'b1;
                 end
                 MUL_DONE: begin
-                    if (mul_op == 0) regs[mul_dst] <= product_acc[63:0];
-                    else if (mul_op == 1) begin
-                        regs[mul_dst] <= product_acc[127:64];
-                        mulh_result <= product_acc[95:64];
+                    if (DIRECT_MUL && PIPE_MUL) begin
+                        case (mul_op)
+                            0: regs[mul_dst] <= pipe_low;
+                            1: begin
+                                regs[mul_dst] <= pipe_high;
+                                mulh_result <= pipe_high[31:0];
+                            end
+                            2: begin
+                                regs[mul_dst] <= pipe_signed_high;
+                                mulh_result <= pipe_signed_high[31:0];
+                            end
+                            default: ;
+                        endcase
+                        // Correct even for arbitrary host-uploaded programs:
+                        // recheck RAW/WAW hazards against the pending
+                        // multiply destination before committing the
+                        // next scalar instruction in this clock.
+                        if (pipe_slot) regs[dst] <= alu_value;
                     end else begin
-                        regs[mul_dst] <= signed_high;
-                        mulh_result <= signed_high[31:0];
+                        if (mul_op == 0) regs[mul_dst] <= product_acc[63:0];
+                        else if (mul_op == 1) begin
+                            regs[mul_dst] <= product_acc[127:64];
+                            mulh_result <= product_acc[95:64];
+                        end else begin
+                            regs[mul_dst] <= signed_high;
+                            mulh_result <= signed_high[31:0];
+                        end
+                        if (fusion) regs[next_dst] <= alu_value;
                     end
-                    if (fusion) regs[next_dst] <= alu_value;
-                    if (at_end) state <= FINISH_A;
-                    else begin pc <= pc + 1'b1; state <= EXEC; end
+                    if (DIRECT_MUL && PIPE_MUL) begin
+                        if (pc >= program_len || (pipe_slot && at_end))
+                            state <= FINISH_A;
+                        else begin
+                            if (pipe_slot) pc <= pc + 10'd1;
+                            state <= EXEC;
+                        end
+                    end else if (at_end) state <= FINISH_A;
+                    else begin pc <= pc + 10'd1; state <= EXEC; end
                 end
                 FINISH_A: begin
                     sip_state <= sip_output;

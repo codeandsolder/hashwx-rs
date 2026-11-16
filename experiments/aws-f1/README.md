@@ -25,6 +25,7 @@ The script uses Rust 1.99 via rustup, managed sccache, Icarus Verilog, Verilator
 
 - HashWX 16 generated programs × 3 nonces: **48 exact 64-bit hashes**.
 - HashX 36 generated programs (including variable-length seeds) × 3 nonces: **108 exact 256-bit hashes**. Each test also reloads the full 512-instruction, non-fused original program for seed 00 and checks three additional digests, including with every 1/2/4/8/16-product serial multiplier topology and the direct multiplier.
+- The optional 2-stage multiply path is also checked against all 108 reference digests, then at 1/4/8 parallel lanes including nonce wraparound. A separate 27-run direct-versus-pipelined differential test mutates dependencies, branches and one-/two-instruction programs, including a fillable final delay slot; it exercises more than 2,700 filled delay slots.
 - Rust encoders: 128 independent generated programs per algorithm checked for lossless packing.
 - Both scanners: target/exclusive comparison, no-hit, zero count, later-wave first hit, multi-hit nonce ordering, partial final waves, 64-bit nonce wraparound and program reload.
 - Parallel scheduler oracle testing for **1, 2, 3, 4, 5, 7 and 8 lanes** per algorithm. Each setting tests both hashes against 64 sequential nonce reference results, plus wraparound oracle results.
@@ -54,12 +55,47 @@ timing closure.
 | HashX, combinational 64x64 multiplication, single issue | 19 | 1 | 5,104 |
 | HashX, previous two-word runtime fusion (plus 64 RAM64M8 distributed-RAM primitives) | 19 | 1 | 5,906 |
 | **HashX, host-packed single-word fusion (new default)** | **19** | **1** | **5,732** |
+| **HashX, two-stage 4×32×32 multiplier + delay-slot ALU issue (alternate)** | **16** | **1** | **5,529** |
 | Combined scalar (one lane each) BAR0 wrapper + scanner/control | 11 | 6 | 10,230 |
 | Combined 4 HashWX + 4 HashX lanes with wave scheduler (before FIFO) | 44 | 24 | 37,387 |
 | Combined 4+4 lanes, four-deep command/result FIFO per algorithm | 44 | 24 | 38,325 |
 | Combined 4+4 lanes, FIFOs and PCIM DMA, legacy 16-cycle HashX | 44 | 24 | 39,283 |
 | Combined 4+4 lanes, FIFOs and PCIM DMA, two-word HashX fusion | 116 | 24 | 44,711 |
 | **Combined 4+4 lanes, FIFOs and PCIM DMA, host-packed HashX (new default)** | **116** | **24** | **42,805** |
+| **Combined 4+4 lanes, FIFOs and PCIM DMA, two-stage HashX alternative** | **104** | **24** | **41,954** |
+
+The two-stage HashX option registers four unsigned 32×32 partial
+products before combining the 128-bit result on the next clock.
+During writeback, its **existing single-port BRAM** fetches and executes
+the following simple independent ALU instruction when there is no
+RAW/WAW hazard with the pending multiply. A multiply paired with an
+ALU inside a compact micro-op still commits that ALU in the first
+stage. The PC advances on the multiply-issue clock, so the
+writeback stage needs no combinational mux before the BRAM address.
+This is essential: an earlier address-mux experiment lost block-RAM
+inference and substituted 80 RAM64M8 distributed-RAM primitives.
+
+All 36 generated HashX programs pass full 256-bit oracle comparison
+with this option, plus a 512-instruction unpacked reload. The separate
+27-case differential test covers register hazards, branch/target
+operations, single/two-word programs, end-of-program delay slots and
+unfusable instructions. Non-power-of-two and 1/4/8-lane wave tests
+also check priority, nonce wrap and reconfiguration.
+
+| HashX core | DSP48E2/core | Estimated logic/core | Cycles/hash | Projected four lanes at 125 MHz |
+|---|---:|---:|---:|---:|
+| Direct combinational 64×64, single-cycle | 19 | 5,732 | 379 | 1.32 MH/s |
+| Two-stage 4×32×32, independent ALU delay-slot issue | 16 | 5,529 | 445 | 1.12 MH/s |
+
+For the two-stage core to beat a 125 MHz single-cycle core,
+it must reach **about 147 MHz**. These MHz figures are design
+scenarios, not measured F1 clocks. The synthesizable design exposes
+the `HX_PIPE_MUL` parameter (0 for the single-cycle default, 1 for
+the two-stage experiment). Compare exact parameterized top-level
+Yosys mappings with `./scripts/synth.sh 4 4 4 1 0` and
+`./scripts/synth.sh 4 4 4 1 1`. Actual timing closure requires the
+pinned AWS F1 Vivado flow; Yosys logic-path reporting is not a
+substitute for mapped XCVU9P setup/hold timing.
 
 Resource counts are from Yosys 0.66 `synth_xilinx -family xcup`,
 without I/O pads or automatic clock buffers. HashWX's single-port
@@ -89,6 +125,8 @@ measure alternative configurations using:
 
     ./scripts/synth.sh 4 4 4 1
     # Args: HashWX lanes, HashX lanes, 16x16 partials, direct 64x64 (1/0)
+    # Optional registered 4×32×32 multiplication pipeline:
+    ./scripts/synth.sh 4 4 4 1 1
     # For single-DSP comparison: ./scripts/synth.sh 4 4 1 0
 
 This uses a compile-time lane count; the host can discover it through read-only
@@ -123,6 +161,16 @@ Generate a separate CL by running:
         --dest /home/jan/builds/hashwx-f1-20261115/cl_hashwx_hashx
 
 The generator preserves the original AWS example source/licenses, OCL interface, port list, tie-offs and build scripts, adds ten RTL modules and connects the exact same synthesizable dual-engine BAR0 wrapper used by the testbench, and extends encrypt.tcl. The original HDK checkout is never modified. It refuses to overwrite the destination.
+
+To generate a second CL candidate with the registered HashX multiplier
+while preserving the single-cycle default as a separate build:
+
+    uv run --no-project python scripts/install-f1-cl.py         --example /home/jan/references/aws-fpga-f1-v1.4.25/hdk/cl/examples/cl_hello_world         --dest /home/jan/builds/hashwx-f1-20261115/cl_hashwx_hashx_pipelined         --hx-pipeline
+
+The generator regression checks **both** candidate configurations against
+the pinned HDK, including the selected top-level parameter and all PCIM
+connections. Vivado should place/route **both** independently using the
+same shell and clock recipe before choosing a deployed AFI.
 
 **No Vivado synthesis or AWS AFI has been performed.** On an appropriately licensed F1 Vivado/HDK machine, the generated CL is intended as CL_DIR for the normal AWS design-checkpoint/AFI flow. The shell-level integration still requires a real Vivado test.
 

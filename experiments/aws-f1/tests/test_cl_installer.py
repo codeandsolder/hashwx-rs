@@ -69,6 +69,17 @@ def main() -> None:
                 ROOT / "rtl" / name
             ).read_bytes()
             assert encrypted.count("file copy -force $CL_DIR/design/" + name) == 1
+        piped = pathlib.Path(temp) / "cl_pipelined"
+        subprocess.run(
+            command[:-1] + [str(piped), "--hx-pipeline"],
+            check=True,
+        )
+        piped_top = (piped / "design" / "cl_hello_world.sv").read_text()
+        assert "hash_f1_dual #(.HX_PIPE_MUL(1'b1)) HASH_ENGINES" in piped_top
+        for name in FILES:
+            assert (piped / "design" / name).read_bytes() == (
+                ROOT / "rtl" / name
+            ).read_bytes()
         repeated = subprocess.run(command, capture_output=True, text=True)
         assert repeated.returncode != 0
         assert "refusing overwrite" in repeated.stderr + repeated.stdout

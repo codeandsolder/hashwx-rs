@@ -4,6 +4,7 @@ module hashx_mmio #(
     parameter integer LANES = 4,
     parameter integer MUL_PARTIALS = 4,
     parameter bit DIRECT_MUL = 1'b1,
+    parameter bit PIPE_MUL = 1'b0,
     parameter integer QUEUE_DEPTH = 4
 )(
     input logic clk, rst, wr_en,
@@ -48,7 +49,7 @@ module hashx_mmio #(
     wire cfg_we = config_write && queue_idle && !dma_active;
 
     hashx_scan #(.LANES(LANES), .MUL_PARTIALS(MUL_PARTIALS),
-                 .DIRECT_MUL(DIRECT_MUL)) scanner(
+                 .DIRECT_MUL(DIRECT_MUL), .PIPE_MUL(PIPE_MUL)) scanner(
         .clk(clk), .rst(rst),
         .cfg_we(cfg_we), .cfg_addr(wr_addr[12:2]), .cfg_data(wr_data),
         .start(scanner_start), .first_nonce(scanner_nonce),

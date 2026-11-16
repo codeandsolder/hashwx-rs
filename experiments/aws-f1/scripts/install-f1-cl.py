@@ -11,6 +11,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--example", type=Path, required=True, help="AWS v1.4.25 hdk/cl/examples/cl_hello_world")
     parser.add_argument("--dest", type=Path, required=True, help="new cl_hashwx directory (must not exist)")
+    parser.add_argument(
+        "--hx-pipeline",
+        action="store_true",
+        help="build HashX with the registered 4x32x32 multiplier and ALU delay-slot issue",
+    )
     args = parser.parse_args()
     example = args.example.resolve(strict=True)
     dest = args.dest.resolve()
@@ -59,6 +64,11 @@ hash_f1_dual HASH_ENGINES (
 // Read Response
 always_ff"""
     assert source.count(needle) == 1
+    if args.hx_pipeline:
+        insert = insert.replace(
+            "hash_f1_dual HASH_ENGINES",
+            "hash_f1_dual #(.HX_PIPE_MUL(1'b1)) HASH_ENGINES",
+        )
     source = source.replace(needle, insert)
     tieoff = chr(96) + 'include "unused_pcim_template.inc"'
     assert source.count(tieoff) == 1
