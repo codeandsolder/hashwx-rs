@@ -22,3 +22,10 @@ path = "src/bin/hashx_fixtures.rs"
 name = "hashx-f1-solve"
 path = "src/bin/solve_hashx.rs"
 required-features = ["aws-f1-sdk"]
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2.191"
+
+[[bin]]
+name = "hashwx-f1-pcim"
+path = "src/bin/solve_pcim.rs"

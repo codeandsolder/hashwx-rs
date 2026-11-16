@@ -4,3 +4,6 @@ pub mod aws;
 pub mod encoding;
 pub mod pcim;
 pub mod queue;
+
+#[cfg(target_os = "linux")]
+pub mod linux;

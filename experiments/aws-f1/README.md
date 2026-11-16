@@ -263,3 +263,52 @@ a supported physically contiguous, pinned, coherent buffer allocation
 path (accounting for its IOMMU setup). No Vivado compilation, AFI or
 physical host/FPGA run has been performed. The first RTL sequencer allows
 one outstanding PCIe transaction; pipelining needs physical measurements.
+
+## Linux F1 host: coherent PCI DMA memory and Rust runner
+
+The host now has a bound PCI driver at `host/linux/hashwx_f1.c`, separate from
+the AWS SDK BAR0-only runner. It binds an AWS AppPF device ID (`1d0f:f000`
+through `f003`; other AFI IDs can be added using the PCI driver `new_id`)
+and calls `dma_alloc_coherent()` on the **actual PCI requester**. This
+returns the DMA *bus address* for the device, accounting for IOMMU
+translation if present; it is not a guessed CPU physical address.
+
+The driver enables 64-bit DMA, maps only the needed 24 KiB of BAR0,
+and exposes a 0600-mode `/dev/hashwx-f1-<PCI-BDF>` device with checked
+ioctls for BAR0 reads/writes and coherent DMA allocation info. An
+`.mmap()` shares one 4096-byte DMA allocation. The 16 descriptor slots
+start at offset 0 and the 16 completion slots at offset 1024, each slot
+64 bytes. The driver restricts opening to one process, and during unbind
+waits for the user file and mappings to close before freeing DMA memory.
+
+Build on the **F1 host with matching kernel headers** (objects stay outside
+the source tree):
+
+```bash
+./scripts/build-f1-driver.sh
+# Then, as root on the F1 host after loading the appropriate AFI:
+# insmod /home/<user>/builds/hashwx-f1/linux-<kernel>/src/hashwx_f1.ko
+```
+
+Use `KERNEL_RELEASE`, `KERNEL_HEADERS` or `F1_BUILD_ROOT` if needed.
+The device has permission mode 0600, so root or an explicit administrator
+permission change is required.
+
+The new `host/src/linux.rs` implements the same `QueueIo` abstraction with
+kernel ioctls and volatile coherent-memory accesses. The runnable binary
+`hashwx-f1-pcim` loads either seed program, posts tagged 16,384-candidate
+jobs to the host-memory DMA ring, handles result-ring backpressure,
+verifies **every matching complete digest** with the CPU oracle, drains
+outstanding jobs and disarms the PCIM engine when idle:
+
+```bash
+cd host
+cargo +1.99.0 run --release --bin hashwx-f1-pcim -- \
+  /dev/hashwx-f1-0000:00:00.0 wx SEED_HEX_64 0 1000000 0xffffffffffffffff
+```
+
+Replace the sample BDF and seed with actual values. Full device execution
+remains untested: there is no F1 AppPF on Acer. The module was compiled
+against the installed 7.3.3 kernel headers but the running Acer kernel
+is 7.2.8, so it was **not loaded**. An actual F1 host, an AFI and full
+Vivado shell validation are still needed.
