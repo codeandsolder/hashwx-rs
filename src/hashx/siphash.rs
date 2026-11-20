@@ -33,7 +33,7 @@
 
 use blake2::Blake2bVarCore;
 use blake2::digest::block_buffer::LazyBuffer;
-use blake2::digest::core_api::{BlockSizeUser, UpdateCore, VariableOutputCore};
+use blake2::digest::block_api::{BlockSizeUser, UpdateCore, VariableOutputCore};
 use std::fmt::{self, Debug};
 
 /// Internal state of one `SipHash` instance
