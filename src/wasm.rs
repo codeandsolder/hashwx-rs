@@ -14,7 +14,7 @@ pub use hashx::{compile as compile_hashx, compile_program as compile_hashx_progr
 
 use wasm_encoder::{
     BlockType, CodeSection, ExportKind, ExportSection, Function, FunctionSection, Instruction,
-    MemArg, MemorySection, MemoryType, Module, TypeSection, ValType,
+    MemArg, MemArgTarget, MemorySection, MemoryType, Module, TypeSection, ValType,
 };
 
 const R0: u32 = 1;
@@ -110,7 +110,8 @@ fn load_src(f: &mut Function, r: u8) {
         Instruction::I64Load(MemArg {
             offset: 0,
             align: 0,
-            memory_index: 0,
+            target: MemArgTarget::Memory(0),
+            ordering: None,
         }),
     );
 }
@@ -190,7 +191,8 @@ fn snapshot(f: &mut Function) {
             Instruction::I64Store(MemArg {
                 offset: off,
                 align: 3,
-                memory_index: 0,
+                target: MemArgTarget::Memory(0),
+                ordering: None,
             }),
         );
     }
@@ -299,7 +301,8 @@ fn body(set: &ProgramSet) -> Function {
         Instruction::I64Store(MemArg {
             offset: 0,
             align: 3,
-            memory_index: 0,
+            target: MemArgTarget::Memory(0),
+            ordering: None,
         }),
     );
     e(&mut f, Instruction::I32Const(16384));
