@@ -320,12 +320,12 @@ fn body(set: &ProgramSet) -> Function {
     f
 }
 /// Compile `seed` into a self-contained `HashWX` WebAssembly module.
-#[must_use]
+#[must_use = "the returned WebAssembly module bytes must be used"]
 pub fn compile(seed: &[u8; SEED_SIZE]) -> Vec<u8> {
     compile_program(&generate(seed))
 }
 /// Compile an already-generated `HashWX` [`ProgramSet`] into WebAssembly bytes.
-#[must_use]
+#[must_use = "the returned WebAssembly module bytes must be used"]
 pub fn compile_program(set: &ProgramSet) -> Vec<u8> {
     let mut m = Module::new();
     let mut ts = TypeSection::new();

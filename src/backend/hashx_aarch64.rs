@@ -68,8 +68,10 @@ impl Compiled {
 
     #[inline]
     pub(crate) fn invoke(&self, registers: &mut NativeRegisterFile) {
-        // SAFETY: `compile` creates this pointer with the HashFn ABI and owns the
-        // executable allocation for the duration of the call.
+        // SAFETY: the owned executable mapping contains the emitted ABI entry.
+        // The immutable, generator-validated program only accesses the eight
+        // register words in this exclusively borrowed transparent RegisterFile.
+        // The emitter uses caller-saved registers and does not change the stack.
         unsafe { (self.function)(registers) };
     }
 }

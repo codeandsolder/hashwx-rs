@@ -49,13 +49,13 @@ impl HashXProgram {
     }
 
     /// Return the 512 generated instructions in execution order.
-    #[must_use]
+    #[must_use = "the returned program instructions must be used"]
     pub fn instructions(&self) -> &[Instruction; NUM_INSTRUCTIONS] {
         self.program.instructions()
     }
 
     /// Return the four-word key used to initialize and finalize `HashX` state.
-    #[must_use]
+    #[must_use = "the returned register key must be used"]
     pub fn register_key(&self) -> [u64; 4] {
         self.register_key.into()
     }
@@ -168,7 +168,7 @@ impl HashX {
     }
 
     /// Build an interpreter-only instance from an already-generated program.
-    #[must_use]
+    #[must_use = "the constructed interpreter must be used"]
     pub fn interpret_program(program: &HashXProgram) -> Self {
         Self {
             register_key: program.register_key,
@@ -212,7 +212,7 @@ impl HashX {
     }
 
     /// Return the active `HashX` execution engine.
-    #[must_use]
+    #[must_use = "the selected runtime must be used"]
     pub const fn runtime(&self) -> HashXRuntime {
         match self.program {
             RuntimeProgram::Interpret(_) => HashXRuntime::Interpret,
@@ -239,7 +239,7 @@ impl HashX {
 
     /// Calculate the first 64 bits of the `HashX` digest.
     #[inline]
-    #[must_use]
+    #[must_use = "the computed hash must be used"]
     pub fn hash(&self, input: u64) -> u64 {
         #[cfg(all(feature = "native", target_arch = "x86_64"))]
         if let RuntimeProgram::Compiled(program) = &self.program {
@@ -249,7 +249,7 @@ impl HashX {
     }
 
     /// Calculate the full 256-bit `HashX` digest.
-    #[must_use]
+    #[must_use = "the computed hash bytes must be used"]
     pub fn hash_bytes(&self, input: u64) -> [u8; Self::FULL_SIZE] {
         let words = self.hash_to_regs(input).digest(self.register_key);
         let mut bytes = [0_u8; Self::FULL_SIZE];
