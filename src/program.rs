@@ -90,13 +90,13 @@ pub struct Instruction {
 }
 impl Instruction {
     /// Operation performed by this instruction.
-    #[must_use]
+    #[must_use = "the instruction opcode must be used"]
     pub const fn op(self) -> Op {
         self.op
     }
 
     /// Destination virtual-register index (`0..8`).
-    #[must_use]
+    #[must_use = "the destination register index must be used"]
     pub const fn dst(self) -> u8 {
         self.dst
     }
@@ -105,13 +105,13 @@ impl Instruction {
     ///
     /// Values `0..8` address virtual registers. The generator may use `8` for
     /// the `HashWX` special source selected by the instruction class.
-    #[must_use]
+    #[must_use = "the source register index must be used"]
     pub const fn src(self) -> u8 {
         self.src
     }
 
     /// Instruction immediate in the `HashWX` encoding.
-    #[must_use]
+    #[must_use = "the instruction immediate must be used"]
     pub const fn imm(self) -> u8 {
         self.imm
     }
@@ -130,13 +130,13 @@ pub struct Program {
 }
 impl Program {
     /// Instructions in execution order.
-    #[must_use]
+    #[must_use = "the returned instruction sequence must be used"]
     pub const fn body(&self) -> &[Instruction; PROGRAM_SIZE] {
         &self.body
     }
 
     /// Whether the loop at the end of this subprogram is unconditional.
-    #[must_use]
+    #[must_use = "the branch policy must be used"]
     pub const fn unconditional(&self) -> bool {
         self.unconditional
     }
@@ -157,13 +157,13 @@ pub struct ProgramSet {
 }
 impl ProgramSet {
     /// Generated subprograms in execution order.
-    #[must_use]
+    #[must_use = "the generated programs must be used"]
     pub const fn programs(&self) -> &[Program; PROGRAM_COUNT] {
         &self.programs
     }
 
     /// Seed-derived two-word key used by `HashWX` initialization/finalization.
-    #[must_use]
+    #[must_use = "the returned hash key must be used"]
     pub const fn hash_key(&self) -> [u64; 2] {
         self.hash_key
     }
@@ -309,7 +309,7 @@ fn one(rng: &mut SipRng, last: bool, deep: bool) -> Program {
     }
 }
 /// Generate the deterministic `HashWX` program for `seed`.
-#[must_use]
+#[must_use = "the generated program set must be used"]
 pub fn generate(seed: &[u8; 32]) -> ProgramSet {
     let program_key = key(seed, 0);
     let hash_key = key(seed, 16);

@@ -57,13 +57,13 @@ pub struct HashWx {
 
 impl HashWx {
     /// Build an architecture-neutral `HashWX` instance.
-    #[must_use]
+    #[must_use = "the constructed interpreter must be used"]
     pub fn interpret(seed: &[u8; SEED_SIZE]) -> Self {
         Self::interpret_program(&generate(seed))
     }
 
     /// Build an architecture-neutral instance from an already-generated program.
-    #[must_use]
+    #[must_use = "the constructed interpreter must be used"]
     pub fn interpret_program(program: &ProgramSet) -> Self {
         Self {
             program: HashWxProgram::Interpret(Box::new(program.clone())),
@@ -127,7 +127,7 @@ impl HashWx {
     }
 
     /// Return the active execution engine.
-    #[must_use]
+    #[must_use = "the selected runtime must be used"]
     pub const fn runtime(&self) -> HashWxRuntime {
         match &self.program {
             HashWxProgram::Interpret(_) => HashWxRuntime::Interpret,
@@ -141,7 +141,7 @@ impl HashWx {
 
     /// Hash one nonce with this `HashWX` instance.
     #[inline]
-    #[must_use]
+    #[must_use = "the computed hash must be used"]
     pub fn hash(&self, nonce: u64) -> u64 {
         match &self.program {
             HashWxProgram::Interpret(program) => portable::hash(program, nonce),
@@ -154,7 +154,7 @@ impl HashWx {
     }
 
     /// Size of generated native code, or `None` for portable execution.
-    #[must_use]
+    #[must_use = "the returned machine code size must be used"]
     pub const fn code_len(&self) -> Option<usize> {
         match &self.program {
             HashWxProgram::Interpret(_) => None,

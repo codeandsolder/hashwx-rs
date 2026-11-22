@@ -116,15 +116,19 @@ impl Compiled {
 
     #[inline]
     pub(crate) fn invoke(&self, registers: &mut NativeRegisterFile) {
-        // SAFETY: `compile` creates this pointer with the HashFn ABI and the executable
-        // allocation is owned by `self` for the duration of the call.
+        // SAFETY: the owned executable mapping contains the emitted ABI entry.
+        // The immutable, generator-validated program only accesses the eight
+        // register words in this exclusively borrowed transparent RegisterFile.
+        // The emitter preserves nonvolatile registers and restores the stack.
         unsafe { (self.function)(registers) };
     }
 
     #[inline]
     pub(crate) fn hash_word(&self, input: u64) -> u64 {
-        // SAFETY: `compile` creates this pointer with the HashWordFn ABI and the
-        // executable allocation is owned by `self` for the duration of the call.
+        // SAFETY: the owned mapping contains the emitted HashWordFn ABI entry.
+        // It computes the hash from the input and embedded program/key using
+        // machine registers and its own stack frame. The emitter preserves
+        // nonvolatile registers and restores that frame before returning.
         unsafe { (self.hash_word_function)(input) }
     }
 }

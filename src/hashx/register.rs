@@ -35,7 +35,7 @@ impl RegisterId {
 
     /// Return the register index in `0..8`.
     #[inline]
-    #[must_use]
+    #[must_use = "the register index must be used"]
     pub const fn index(self) -> u8 {
         self.0
     }
@@ -117,13 +117,21 @@ impl RegisterSet {
 
 /// Values for all registers in the `HashX` machine
 ///
-/// Guaranteed to have a `repr(C)` layout that includes each register in order
-/// with no padding and no extra fields. The compiled runtime will produce
-/// functions that read or write a `RegisterFile` directly.
+/// Transparent over the contiguous array of eight initialized u64 words.
+/// Native JITs receive exclusive mutable access for the duration of a call;
+/// every emitted register access is within this array.
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-#[repr(C)]
+#[repr(transparent)]
 pub struct RegisterFile([u64; NUM_REGISTERS]);
+
+// Machine-code layout is an actual ABI contract, not an optimization hint.
+// Fail compilation if the declared register storage ceases to match the
+// generated native loads and stores.
+const _: () = {
+    assert!(core::mem::size_of::<RegisterFile>() == NUM_REGISTERS * core::mem::size_of::<u64>());
+    assert!(core::mem::align_of::<RegisterFile>() == core::mem::align_of::<u64>());
+};
 
 impl RegisterFile {
     /// Load a word from the register file.

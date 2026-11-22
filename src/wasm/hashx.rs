@@ -351,7 +351,7 @@ fn body(program: &HashXProgram) -> Function {
 ///
 /// The generated module imports nothing and exports `hash(i64) -> i64`,
 /// returning the first 64 bits of the `HashX` digest.
-#[must_use]
+#[must_use = "the returned WebAssembly module bytes must be used"]
 pub fn compile_program(program: &HashXProgram) -> Vec<u8> {
     let mut module = Module::new();
     let mut types = TypeSection::new();
