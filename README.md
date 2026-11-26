@@ -68,3 +68,8 @@ HashWX and HashX have portable Rust execution on every supported Rust target. Wi
 ## License
 
 LGPL-3.0-only. HashWX is LGPL-3.0-or-later, while the in-tree HashX compatibility model is derived from the Tor Project Arti `hashx` 0.10.0 implementation under LGPL-3.0-only, so the combined crate uses the common LGPL-3.0-only terms. hashwx-rs provides its own HashX execution backends; upstream `hashx` remains a dev-only differential oracle.
+
+Code and Solder's original contributions are also available under either MIT
+or Apache-2.0 at your option. Upstream-derived material retains its original
+license; see [third-party provenance](THIRD_PARTY.md), `LICENSE-MIT`, and
+`LICENSE-APACHE`.
