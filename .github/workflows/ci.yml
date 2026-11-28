@@ -33,7 +33,7 @@ jobs:
         run: node .github/scripts/node-wide-arithmetic-tripwire.mjs
 
   verify:
-    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@4c7fc62a9f9ec37aaa7c155d263cd5025e446a53 # main
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@5991b873ab28ec8fae36c2c8ef944a3f67f5f9b3 # main
     with:
       command: >-
         cargo fmt --check &&
@@ -51,7 +51,7 @@ jobs:
 
   msrv:
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
-    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@4c7fc62a9f9ec37aaa7c155d263cd5025e446a53 # main
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@5991b873ab28ec8fae36c2c8ef944a3f67f5f9b3 # main
     with:
       validation-tier: release
       rust-toolchain: "1.92.0"
@@ -63,7 +63,7 @@ jobs:
 
   aarch64:
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
-    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@4c7fc62a9f9ec37aaa7c155d263cd5025e446a53 # main
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@5991b873ab28ec8fae36c2c8ef944a3f67f5f9b3 # main
     with:
       rust-targets: "aarch64-unknown-linux-musl"
       rustflags: ""
@@ -79,7 +79,7 @@ jobs:
 
   armv7:
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
-    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@4c7fc62a9f9ec37aaa7c155d263cd5025e446a53 # main
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@5991b873ab28ec8fae36c2c8ef944a3f67f5f9b3 # main
     with:
       rust-targets: "armv7-unknown-linux-musleabihf"
       rustflags: ""
@@ -95,7 +95,7 @@ jobs:
 
   performance-linux:
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
-    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@4c7fc62a9f9ec37aaa7c155d263cd5025e446a53 # main
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@5991b873ab28ec8fae36c2c8ef944a3f67f5f9b3 # main
     with:
       rustflags: ""
       timeout-minutes: 30
@@ -103,7 +103,7 @@ jobs:
 
   apple-arm:
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
-    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@4c7fc62a9f9ec37aaa7c155d263cd5025e446a53 # main
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@5991b873ab28ec8fae36c2c8ef944a3f67f5f9b3 # main
     with:
       runner: macos-15
       rustflags: ""
@@ -120,7 +120,7 @@ jobs:
 
   windows-x86-cross:
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
-    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@4c7fc62a9f9ec37aaa7c155d263cd5025e446a53 # main
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@5991b873ab28ec8fae36c2c8ef944a3f67f5f9b3 # main
     with:
       rust-targets: "x86_64-pc-windows-gnu"
       rustflags: ""
