@@ -31,7 +31,7 @@ jobs:
 
       - name: Resolve the release tag's native compiler
         id: compiler
-        uses: codeandsolder/ci-workflows/.github/actions/resolve-rust-toolchain@4c7fc62a9f9ec37aaa7c155d263cd5025e446a53 # main
+        uses: codeandsolder/ci-workflows/.github/actions/resolve-rust-toolchain@5991b873ab28ec8fae36c2c8ef944a3f67f5f9b3 # main
       - name: Install release toolchain
         run: rustup show active-toolchain
 
@@ -58,7 +58,7 @@ jobs:
           }
 
       - name: Setup mandatory sccache
-        uses: codeandsolder/ci-workflows/.github/actions/setup-sccache@4c7fc62a9f9ec37aaa7c155d263cd5025e446a53 # main
+        uses: codeandsolder/ci-workflows/.github/actions/setup-sccache@5991b873ab28ec8fae36c2c8ef944a3f67f5f9b3 # main
         with:
           rust-toolchain: ${{ steps.compiler.outputs.channel }}
 
@@ -75,4 +75,4 @@ jobs:
         run: cargo publish --locked
       - name: Finalize mandatory sccache
         if: always()
-        uses: codeandsolder/ci-workflows/.github/actions/finalize-sccache@4c7fc62a9f9ec37aaa7c155d263cd5025e446a53 # main
+        uses: codeandsolder/ci-workflows/.github/actions/finalize-sccache@5991b873ab28ec8fae36c2c8ef944a3f67f5f9b3 # main
